@@ -1,0 +1,18 @@
+[package]
+name = "snake"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+protobuf = "3.2.0"
+ncurses = "5.101.0"
+log = "0.4.19"
+serde = "1.0.176"
+serde_json = "1.0.104"
+rand = "0.8.5"
+anyhow = "1.0.75"
+
+[build]
+ignore = ["./src/old/**"]
