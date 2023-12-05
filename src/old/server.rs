@@ -9,7 +9,7 @@ use super::client::Client;
 use super::sockets::Sockets;
 use crate::snakes::snakes::game_state::Snake;
 use crate::snakes::snakes::game_state::snake::SnakeState;
-use crate::snakes::snakes::{GameAnnouncement, GameConfig, GameMessage, GamePlayer, GamePlayers, game_message, GameState, NodeRole};
+use crate::snakes::snakes::{GameAnnouncement, GameConfig, GameMessage, GamePlayer, GamePlayers, game_message, GameState, NodeRole, Direction};
 use crate::snakes::snakes::game_message::{AnnouncementMsg, DiscoverMsg, PingMsg, AckMsg, StateMsg, ErrorMsg};
 use ncurses::*;
 
@@ -147,7 +147,15 @@ impl Server {
                             if let Some(player) = self.get_player_by_ip(&addr) {
                                 let id = player.id();
                                 if let Some(p) = self.game.snakes.get_mut(&id) {
-                                    p.set_head_direction(steer.direction())
+                                    let opposite_dir = match p.head_direction() {
+                                        Direction::UP => Direction::DOWN,
+                                        Direction::DOWN => Direction::UP,
+                                        Direction::LEFT => Direction::RIGHT,
+                                        Direction::RIGHT => Direction::LEFT,
+                                    };
+                                    if steer.direction() != opposite_dir {
+                                        p.set_head_direction(steer.direction())
+                                    }
                                 }
                             }
                             self.send_ack(msg.msg_seq(), None, &addr);
@@ -220,15 +228,25 @@ impl Server {
             self.game.config.clone(),
             "Admin".to_owned(),
             0,
-            "localhost:48666".to_socket_addrs().unwrap().next().unwrap()
         );
         let mut player = GamePlayer::new();
         player.set_name("Admin".to_owned());
-        player.set_ip_address("localhost:48668".to_owned());
+        player.set_ip_address("127.0.0.1:48668".to_owned());
         player.set_score(0);
         player.set_role(NodeRole::MASTER); // TODO: change
         player.set_type(crate::snakes::snakes::PlayerType::HUMAN);
         player.set_id(0);
+        if let Some((head, tail, dir)) = self.game.get_free_coord5x5() {
+            self.game.world[head.y() as usize][head.x() as usize] = WorldCell::Snake;
+            self.game.world[tail.y() as usize][tail.x() as usize] = WorldCell::Snake;
+            let mut snake = Snake::new();
+            snake.points.push(tail);
+            snake.points.push(head);
+            snake.set_head_direction(dir);
+            snake.set_state(SnakeState::ALIVE);
+            snake.set_player_id(0);
+            self.game.snakes.insert(player.id(), snake);
+        }
         self.players.players.push(player);
         local_client
     }
@@ -250,7 +268,6 @@ impl Server {
                 self.announce()
             }
             client.action();
-            client.print();
         }
     }
 }

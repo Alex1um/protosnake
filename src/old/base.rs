@@ -5,6 +5,7 @@ use crate::snakes::snakes::{Direction, GamePlayer, GameConfig, GameState};
 use crate::snakes::snakes::game_state::{Coord, Snake};
 use std::cell::Cell;
 use std::collections::HashMap;
+use std::ops::Index;
 use rand::prelude::SliceRandom;
 use rand::seq::IteratorRandom;
 
@@ -85,10 +86,10 @@ impl Game {
                     self.rng.set(rng);
                     let mut head_coord = Coord::new();
                     head_coord.set_x(x);
-                    head_coord.set_x(y);
+                    head_coord.set_y(y);
                     let mut tail_coord = Coord::new();
                     tail_coord.set_x(tx);
-                    tail_coord.set_x(ty);
+                    tail_coord.set_y(ty);
                     return Some((head_coord, tail_coord, direction));
                 } else {
                     self.rng.set(rng);
@@ -154,6 +155,7 @@ impl Game {
                         return true;
                     }
                     WorldCell::Food => {
+                        self.food.retain(|e| e != &new_coord);
                         snake.points.push(new_coord);
                         new_world[new_y][new_x] = WorldCell::Snake;
                         return true;
@@ -177,12 +179,12 @@ impl Game {
             } else { false }
         });
 
+        self.world = new_world;
+        
         for _ in 0..(self.config.food_static()- self.food.len() as i32) {
             let coord = self.get_free_random_coord();
             self.add_food_to(coord);
         }
-
-        self.world = new_world;
     }
 
     pub fn apply_state(&mut self, state: MessageField<GameState>) {

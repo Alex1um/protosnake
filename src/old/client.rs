@@ -17,18 +17,16 @@ pub struct Client {
     player_name: String,
     sockets: Sockets,
     id: i32,
-    cur_addr: SocketAddr,
 }
 
 impl Client {
 
-    pub fn new(config: GameConfig, player_name: String, player_id: i32, addr: SocketAddr) -> Self {
+    pub fn new(config: GameConfig, player_name: String, player_id: i32) -> Self {
         Client {
             game: Game::new(config),
             player_name,
             sockets: Sockets::new2(true),
             id: player_id,
-            cur_addr: addr
         }
     }
 
@@ -107,12 +105,11 @@ impl Client {
             player_name: player_name.to_owned(),
             sockets,
             id: pid,
-            cur_addr: addr.to_socket_addrs()?.next().expect("socket address")
         })
         
     }
 
-    pub fn print(&self) {
+    fn print(&self) {
         clear();
         const FOOD_PAIR: i16 = 4;
         init_pair(FOOD_PAIR, COLOR_GREEN, COLOR_BLACK);
@@ -153,13 +150,18 @@ impl Client {
         refresh();
     }
 
-    fn send_steer(&self, dir: Direction, addr: &SocketAddr) {
+    fn send_steer(&self, dir: Direction, addr: SocketAddr) {
         let mut steer = SteerMsg::new();
         steer.set_direction(dir);
         let mut gm = GameMessage::new();
+        gm.set_sender_id(self.id);
+        gm.set_msg_seq(0);
         gm.set_steer(steer);
-        self.sockets.socket.send(&gm.write_to_bytes().expect("bytes"));
+        if let Err(e) = self.sockets.socket.send_to(&gm.write_to_bytes().expect("bytes"), addr) {
+            panic!("{:?}", e);
+        }
     }
+
     pub fn prepare(&mut self) {
         self.sockets.socket.set_nonblocking(true);
         timeout(300);
@@ -174,6 +176,7 @@ impl Client {
                     match tpe {
                         game_message::Type::State(state) => {
                             self.game.apply_state(state.state);
+                            self.print();
                         }
                         _ => {}
                     }
@@ -181,21 +184,22 @@ impl Client {
             }
             match getch() {
                 KEY_LEFT => {
-                    self.send_steer(Direction::LEFT, &addr);
+                    self.send_steer(Direction::LEFT, addr);
                 }
                 KEY_RIGHT => {
-                    self.send_steer(Direction::RIGHT, &addr);
+                    self.send_steer(Direction::RIGHT, addr);
                 }
                 KEY_UP => {
-                    self.send_steer(Direction::UP, &addr);
+                    self.send_steer(Direction::UP, addr);
                 }
                 KEY_DOWN => {
-                    self.send_steer(Direction::DOWN, &addr);
+                    self.send_steer(Direction::DOWN, addr);
                 }
                 ERR => {
 
                 }
-                _ => {}
+                _  => {
+                }
             }
         }
     }
