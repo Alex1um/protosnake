@@ -34,7 +34,7 @@ fn main() {
                     cfg.set_height(options[1].value.expect("height"));
                     cfg.set_food_static(options[2].value.expect("food"));
                     cfg.set_state_delay_ms(options[3].value.expect("state delay"));
-                    let mut srv = Server::new(cfg, Some("Snake game".to_owned()));
+                    let mut srv = Server::new(cfg, "Snake game".to_owned());
                     srv.run();
                 }
             }

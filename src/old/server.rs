@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::process::id;
 use std::sync::Arc;
 use std::time::Instant;
@@ -19,12 +19,12 @@ pub struct Server {
     game: Game,
     players: GamePlayers,
     sockets: Sockets,
-    name: Option<String>,
+    name: String,
     time_map: HashMap<i32, Instant>,
 }
 
 impl Server {
-    pub fn new(config: GameConfig, name: Option<String>) -> Self {
+    pub fn new(config: GameConfig, name: String) -> Self {
         Server {
             game: Game::new(config),
             players: GamePlayers::new(),
@@ -36,7 +36,7 @@ impl Server {
 
     fn get_announcement(&self) -> GameMessage {
         let mut current_game_info = GameAnnouncement::new();
-        current_game_info.game_name.clone_from(&self.name);
+        current_game_info.game_name = Some(self.name.clone());
         current_game_info.players = MessageField::some(self.players.clone());
         current_game_info.config = MessageField::some(self.game.config.clone());
         let mut announcement = AnnouncementMsg::new();
@@ -82,7 +82,7 @@ impl Server {
         let socket = &self.sockets.socket;
         let mut buf = [0u8; 1024];
         if let Ok((len, addr)) = self.sockets.socket.recv_from(&mut buf) {
-            if let Ok(msg) = GameMessage::parse_from_bytes(&buf) {
+            if let Ok(msg) = GameMessage::parse_from_bytes(&buf[..len]) {
                 if let Some(t) = &msg.Type {
                     match t {
                         game_message::Type::Ping(ping_msg) => {
@@ -189,10 +189,14 @@ impl Server {
         state.foods.clone_from(&self.game.food);
         state.snakes = self.game.snakes.values().cloned().collect();
         state.players = Some(self.players.clone()).into();
+        state.set_state_order(0);
         let mut state_msg = StateMsg::new();
         state_msg.state = Some(state).into();
         let mut msg = GameMessage::new();
         msg.set_state(state_msg);
+        msg.set_msg_seq(0);
+        msg.set_sender_id(0);
+        msg.set_receiver_id(0);
         let bytes = msg.write_to_bytes().expect("written state");
         for player in self.players.players.iter() {
             self.sockets.socket.send_to(&bytes, player.ip_address());
@@ -204,19 +208,49 @@ impl Server {
         let ar = self.sockets.socket.send_to(&announcemet.write_to_bytes().expect("write announcement"), "239.192.0.4");
     }
 
+    pub fn run_local(mut srv: Server) {
+        use std::thread;
+        let mut client = Client::join("localhost:48666", &srv.name, "Admin")
+            .expect("Local client connection");
+        client.play();
+    }
+
+    fn add_local_player(&mut self) -> Client {
+        let local_client = Client::new(
+            self.game.config.clone(),
+            "Admin".to_owned(),
+            0,
+            "localhost:48666".to_socket_addrs().unwrap().next().unwrap()
+        );
+        let mut player = GamePlayer::new();
+        player.set_name("Admin".to_owned());
+        player.set_ip_address("localhost:48668".to_owned());
+        player.set_score(0);
+        player.set_role(NodeRole::MASTER); // TODO: change
+        player.set_type(crate::snakes::snakes::PlayerType::HUMAN);
+        player.set_id(0);
+        self.players.players.push(player);
+        local_client
+    }
+
     pub fn run(&mut self) {
-        endwin();
+        // endwin();
+        let mut client = self.add_local_player();
+        client.prepare();
         let mut game_timestamp = Instant::now();
         let mut announce_timestamp = Instant::now();
         loop {
             self.receive_message();
             if game_timestamp.elapsed().as_millis() as i32 > self.game.config.state_delay_ms() {
+                self.game.update();
                 self.send_state();
                 game_timestamp = Instant::now();
             }
             if announce_timestamp.elapsed().as_millis() > 1000 {
                 self.announce()
             }
+            client.action();
+            client.print();
         }
     }
 }

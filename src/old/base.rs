@@ -177,7 +177,7 @@ impl Game {
             } else { false }
         });
 
-        for _ in 0..(self.food.len() as i32 - self.config.food_static()) {
+        for _ in 0..(self.config.food_static()- self.food.len() as i32) {
             let coord = self.get_free_random_coord();
             self.add_food_to(coord);
         }
