@@ -2,7 +2,7 @@ use std::net::{ToSocketAddrs, SocketAddr};
 
 use protobuf::Message;
 
-use crate::snakes::snakes::{GameConfig, game_message::{JoinMsg, self, StateMsg, SteerMsg, DiscoverMsg}, PlayerType, NodeRole, GameMessage, game_state::Coord, Direction};
+use crate::snakes::snakes::{GameConfig, game_message::{JoinMsg, self, StateMsg, SteerMsg, DiscoverMsg, RoleChangeMsg}, PlayerType, NodeRole, GameMessage, game_state::Coord, Direction};
 
 use super::{base::Game, sockets::Sockets};
 
@@ -162,6 +162,30 @@ impl Client {
         }
     }
 
+    fn send_change_player(&self, addr: SocketAddr) {
+        let mut chnge = RoleChangeMsg::new();
+        chnge.set_sender_role(NodeRole::NORMAL);
+        let mut gm = GameMessage::new();
+        gm.set_sender_id(self.id);
+        gm.set_msg_seq(0);
+        gm.set_role_change(chnge);
+        if let Err(e) = self.sockets.socket.send_to(&gm.write_to_bytes().expect("bytes"), addr) {
+            panic!("{:?}", e);
+        }
+    }
+
+    fn send_change_viewer(&self, addr: SocketAddr) {
+        let mut chnge = RoleChangeMsg::new();
+        chnge.set_sender_role(NodeRole::VIEWER);
+        let mut gm = GameMessage::new();
+        gm.set_sender_id(self.id);
+        gm.set_msg_seq(0);
+        gm.set_role_change(chnge);
+        if let Err(e) = self.sockets.socket.send_to(&gm.write_to_bytes().expect("bytes"), addr) {
+            panic!("{:?}", e);
+        }
+    }
+
     pub fn prepare(&mut self) {
         self.sockets.socket.set_nonblocking(true);
         timeout(300);
@@ -194,6 +218,12 @@ impl Client {
                 }
                 KEY_DOWN => {
                     self.send_steer(Direction::DOWN, addr);
+                }
+                KEY_ENTER => {
+                    self.send_change_player(addr);
+                }
+                KEY_BACKSPACE => {
+                    self.send_change_viewer(addr);
                 }
                 ERR => {
 

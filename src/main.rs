@@ -19,7 +19,7 @@ fn main() {
     // raw();
     keypad(stdscr(), true);
 
-    if let Ok(option) = menu::show_menu(vec!["Start", "Server list", "Exit"]) {
+    if let Ok(option) = menu::show_menu(vec!["Start", "Server list", "Dirrect connect", "Exit"]) {
         match option {
             "Start" => {
                 let mut options = vec![
