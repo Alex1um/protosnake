@@ -39,10 +39,13 @@ impl Server {
         current_game_info.game_name = Some(self.name.clone());
         current_game_info.players = MessageField::some(self.players.clone());
         current_game_info.config = MessageField::some(self.game.config.clone());
+        current_game_info.set_can_join(true);
         let mut announcement = AnnouncementMsg::new();
         announcement.games.push(current_game_info);
         let mut game_message = GameMessage::new();
         game_message.set_msg_seq(0);
+        game_message.set_receiver_id(1);
+        game_message.set_sender_id(0);
         game_message.set_announcement(announcement);
         game_message
     }
@@ -97,12 +100,11 @@ impl Server {
                         game_message::Type::Discover(discover) => {
                             let announcement = self.get_announcement();
                             if let Ok(bytes) = announcement.write_to_bytes() {
-                                let res = self.sockets.socket.send_to(&announcement.write_to_bytes().expect("written announcement"), &addr);
+                                let res = self.sockets.socket.send_to(&bytes, &addr);
                             }
                         }
                         game_message::Type::Error(error) => {
                             self.send_ack(msg.msg_seq(), None, &addr);
-
                         }
                         game_message::Type::Join(join) => {
                             let mut player = GamePlayer::new();
@@ -111,6 +113,7 @@ impl Server {
                             player.set_role(join.requested_role()); // TODO: change
                             player.set_type(join.player_type());
                             player.set_id(self.time_map.keys().max().unwrap_or(&0) + 1);
+                            player.set_score(0);
                             if join.requested_role() != NodeRole::VIEWER {
                                 if let Some((head, tail, dir)) = self.game.get_free_coord5x5() {
                                     self.game.world[head.y() as usize][head.x() as usize] = WorldCell::Snake;
@@ -120,12 +123,14 @@ impl Server {
                                     snake.points.push(head);
                                     snake.set_head_direction(dir);
                                     snake.set_state(SnakeState::ALIVE);
+                                    snake.set_player_id(player.id());
                                     self.game.snakes.insert(player.id(), snake);
                                     self.players.players.push(player);
                                 } else {
                                     let mut error = ErrorMsg::new();
                                     error.set_error_message("no available space for snake".to_string());
                                     let mut game_msg = GameMessage::new();
+                                    game_msg.set_msg_seq(0);
                                     game_msg.set_error(error);
                                     if let Ok(bytes) = game_msg.write_to_bytes() {
                                         let _ = socket.send_to(&bytes, addr);

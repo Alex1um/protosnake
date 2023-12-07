@@ -5,7 +5,7 @@ use ncurses::*;
 use protobuf::Message;
 
 pub fn browse() -> Option<Client> {
-    let sockets = Sockets::new2(true);
+    let sockets = Sockets::new3(true);
     let mut server_list = HashMap::<SocketAddr, AnnouncementMsg>::new();
     let mut buf = [0;1024];
 
@@ -17,6 +17,7 @@ pub fn browse() -> Option<Client> {
     init_pair(SERVER_SELECTED_PAIR, COLOR_WHITE, COLOR_BLUE);
 
     loop {
+        clear();
         if let Ok((len, addr)) = sockets.multicast_receiver.recv_from(&mut buf) {
             if let Ok(msg) = GameMessage::parse_from_bytes(&buf) {
                 if let Some(tpe) = msg.Type {
@@ -41,6 +42,7 @@ pub fn browse() -> Option<Client> {
             }
             addstr("\n");
         }
+        refresh();
     }
     None
 }

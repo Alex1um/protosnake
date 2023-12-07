@@ -2,7 +2,7 @@ use std::net::{ToSocketAddrs, SocketAddr};
 
 use protobuf::Message;
 
-use crate::snakes::snakes::{GameConfig, game_message::{JoinMsg, self, StateMsg, SteerMsg, DiscoverMsg, RoleChangeMsg}, PlayerType, NodeRole, GameMessage, game_state::Coord, Direction};
+use crate::snakes::snakes::{GameConfig, game_message::{JoinMsg, self, StateMsg, SteerMsg, DiscoverMsg, RoleChangeMsg}, PlayerType, NodeRole, GameMessage, game_state::{Coord, snake::SnakeState}, Direction};
 
 use super::{base::Game, sockets::Sockets};
 
@@ -39,7 +39,7 @@ impl Client {
     fn wait_announcement(sockets: &mut Sockets, game_name: &str) -> Result<GameConfig> {
         let mut buf = [0u8; 1024];
         let len = sockets.socket.recv(&mut buf)?;
-        let gm = &GameMessage::parse_from_bytes(&buf)?;
+        let gm = GameMessage::parse_from_bytes(&buf[..len])?;
         if let Some(ref r#type) = gm.Type {
             match r#type {
                 game_message::Type::Announcement(ann) => {
@@ -62,7 +62,7 @@ impl Client {
     fn wait_ack(sockets: &mut Sockets) -> Result<i32> {
         let mut buf = [0u8; 1024];
         let len = sockets.socket.recv(&mut buf)?;
-        let gm = &GameMessage::parse_from_bytes(&buf)?;
+        let gm = &GameMessage::parse_from_bytes(&buf[..len])?;
         if let Some(ref r#type) = gm.Type {
             match r#type {
                 game_message::Type::Ack(ack) => {
@@ -80,10 +80,11 @@ impl Client {
 
     pub fn join<T>(addr: T, game_name: &str, player_name: &str) -> Result<Self>
     where T: ToSocketAddrs {
-        let mut sockets = Sockets::new2(false);
+        let mut sockets = Sockets::new3(false);
         sockets.socket.connect(&addr)?;
         let mut msg = GameMessage::new();
         msg.set_discover(DiscoverMsg::new());
+        msg.set_msg_seq(0);
         sockets.socket.send(&msg.write_to_bytes()?)?;
         let config = Self::wait_announcement(&mut sockets, game_name)?;
 
@@ -94,6 +95,7 @@ impl Client {
         join_msg.set_player_name(player_name.to_string());
         let mut msg = GameMessage::new();
         msg.set_join(join_msg);
+        msg.set_msg_seq(0);
         let bytes = msg.write_to_bytes()?;
         sockets.socket.send(&bytes)?;
 
@@ -117,6 +119,8 @@ impl Client {
         init_pair(EN_SNAK_PAIR, COLOR_RED, COLOR_BLACK);
         const SELF_SNAK_PAIR: i16 = 6;
         init_pair(SELF_SNAK_PAIR, COLOR_BLUE, COLOR_BLACK);
+        const ZM_SNAK_PAIR: i16 = 7;
+        init_pair(ZM_SNAK_PAIR, COLOR_GREEN | 0b1000, COLOR_BLACK);
         attron(COLOR_PAIR(FOOD_PAIR));
         for food in self.game.food.iter() {
             let x = food.x();
@@ -125,16 +129,26 @@ impl Client {
             addch('@' as u32);
         }
         attroff(COLOR_PAIR(FOOD_PAIR));
-        attron(COLOR_PAIR(EN_SNAK_PAIR));
+        let mut snak_attroff = COLOR_PAIR(EN_SNAK_PAIR);
         for snak in self.game.snakes.values() {
+            match snak.state() {
+                SnakeState::ZOMBIE => {
+                    attron(COLOR_PAIR(ZM_SNAK_PAIR));
+                    snak_attroff = COLOR_PAIR(ZM_SNAK_PAIR)
+                }
+                SnakeState::ALIVE => {
+                    snak_attroff = COLOR_PAIR(EN_SNAK_PAIR);
+                    attron(COLOR_PAIR(EN_SNAK_PAIR));
+                }
+            }
             for coord in snak.points.iter() {
                 let x = coord.x();
                 let y = coord.y();
                 mv(y, x);
                 addch('#' as u32);
             }
+            attroff(snak_attroff);
         }
-        attroff(COLOR_PAIR(EN_SNAK_PAIR));
         if let Some(snak) = self.game.snakes.get(&self.id) {
             attron(COLOR_PAIR(SELF_SNAK_PAIR));
             for coord in snak.points.iter() {
