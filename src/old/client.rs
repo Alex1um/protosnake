@@ -233,7 +233,7 @@ impl Client {
                 KEY_DOWN => {
                     self.send_steer(Direction::DOWN, addr);
                 }
-                KEY_ENTER => {
+                KEY_ENTER | 10 => {
                     self.send_change_player(addr);
                 }
                 KEY_BACKSPACE => {

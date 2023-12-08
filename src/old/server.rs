@@ -82,7 +82,6 @@ impl Server {
     }
 
     fn receive_message(&mut self) {
-        let socket = &self.sockets.socket;
         let mut buf = [0u8; 1024];
         if let Ok((len, addr)) = self.sockets.socket.recv_from(&mut buf) {
             if let Ok(msg) = GameMessage::parse_from_bytes(&buf[..len]) {
@@ -133,7 +132,7 @@ impl Server {
                                     game_msg.set_msg_seq(0);
                                     game_msg.set_error(error);
                                     if let Ok(bytes) = game_msg.write_to_bytes() {
-                                        let _ = socket.send_to(&bytes, addr);
+                                        let _ = self.sockets.socket.send_to(&bytes, addr);
                                     }
                                 }
                             } else {
@@ -142,8 +141,37 @@ impl Server {
                             self.send_ack(msg.msg_seq(), None, &addr);
                         }
                         game_message::Type::RoleChange(role_change) => {
-                            self.send_ack(msg.msg_seq(), None, &addr);
+                            if let Some((old_role, id)) = self.get_player_by_ip(&addr).and_then(|ply| Some((ply.role(), ply.id()))) {
+                                let new_role = role_change.sender_role();
+                                if new_role != old_role {
+                                    if new_role == NodeRole::VIEWER {
+                                        self.game.snakes.entry(id).and_modify(|snak| snak.set_state(SnakeState::ZOMBIE));
+                                        self.get_player_by_ip_mut(&addr).unwrap().set_role(new_role);
+                                    } else if new_role == NodeRole::NORMAL {
+                                        if let Some(snak) = self.game.snakes.get_mut(&id) {
+                                            snak.set_state(SnakeState::ALIVE);
+                                            self.get_player_by_ip_mut(&addr).unwrap().set_role(new_role);
+                                        } else {
+                                            if let Some((head, tail, dir)) = self.game.get_free_coord5x5() {
+                                                self.game.world[head.y() as usize][head.x() as usize] = WorldCell::Snake;
+                                                self.game.world[tail.y() as usize][tail.x() as usize] = WorldCell::Snake;
+                                                let mut snake = Snake::new();
+                                                snake.points.push(tail);
+                                                snake.points.push(head);
+                                                snake.set_head_direction(dir);
+                                                snake.set_state(SnakeState::ALIVE);
+                                                snake.set_player_id(id);
+                                                self.game.snakes.insert(id, snake);
+                                                self.get_player_by_ip_mut(&addr).unwrap().set_role(new_role);
+                                            }
 
+                                        }
+                                    }
+                                } 
+                                
+                            }
+                            
+                            self.send_ack(msg.msg_seq(), None, &addr);
                         }
                         game_message::Type::State(state) => {
                             self.send_ack(msg.msg_seq(), None, &addr);
@@ -151,15 +179,17 @@ impl Server {
                         game_message::Type::Steer(steer) => {
                             if let Some(player) = self.get_player_by_ip(&addr) {
                                 let id = player.id();
-                                if let Some(p) = self.game.snakes.get_mut(&id) {
-                                    let opposite_dir = match p.head_direction() {
-                                        Direction::UP => Direction::DOWN,
-                                        Direction::DOWN => Direction::UP,
-                                        Direction::LEFT => Direction::RIGHT,
-                                        Direction::RIGHT => Direction::LEFT,
-                                    };
-                                    if steer.direction() != opposite_dir {
-                                        p.set_head_direction(steer.direction())
+                                if player.role() != NodeRole::VIEWER {
+                                    if let Some(p) = self.game.snakes.get_mut(&id) {
+                                        let opposite_dir = match p.head_direction() {
+                                            Direction::UP => Direction::DOWN,
+                                            Direction::DOWN => Direction::UP,
+                                            Direction::LEFT => Direction::RIGHT,
+                                            Direction::RIGHT => Direction::LEFT,
+                                        };
+                                        if steer.direction() != opposite_dir {
+                                            p.set_head_direction(steer.direction())
+                                        }
                                     }
                                 }
                             }
