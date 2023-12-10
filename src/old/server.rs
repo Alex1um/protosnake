@@ -300,7 +300,8 @@ impl Server {
                 game_timestamp = Instant::now();
             }
             if announce_timestamp.elapsed().as_millis() > 1000 {
-                self.announce()
+                self.announce();
+                announce_timestamp = Instant::now();
             }
             client.action();
         }

@@ -19,7 +19,7 @@ pub fn browse() -> Option<Client> {
     loop {
         clear();
         if let Ok((len, addr)) = sockets.multicast_receiver.recv_from(&mut buf) {
-            if let Ok(msg) = GameMessage::parse_from_bytes(&buf) {
+            if let Ok(msg) = GameMessage::parse_from_bytes(&buf[..len]) {
                 if let Some(tpe) = msg.Type {
                     match tpe {
                         game_message::Type::Announcement(an) => {

@@ -1,11 +1,9 @@
 use protobuf::MessageField;
-use rand::Rng;
-use rand::rngs::ThreadRng;
+use rand::{Rng, thread_rng};
 use crate::snakes::snakes::{Direction, GamePlayer, GameConfig, GameState};
 use crate::snakes::snakes::game_state::{Coord, Snake};
 use std::cell::Cell;
 use std::collections::HashMap;
-use std::ops::Index;
 use rand::prelude::SliceRandom;
 use rand::seq::IteratorRandom;
 
@@ -21,7 +19,6 @@ pub struct Game {
     pub food: Vec<Coord>,
     pub snakes: HashMap<i32, Snake>,
     pub config: GameConfig,
-    rng: Cell<ThreadRng>,
 }
 
 impl Game {
@@ -36,14 +33,13 @@ impl Game {
                 }
             }
         }
-        let mut rng = self.rng.take();
+        let mut rng = thread_rng();
         free_coords.shuffle(&mut rng);
-        self.rng.set(rng);
         free_coords
     }
 
     pub fn get_free_random_coord(&self) -> Coord {
-        let mut rng = self.rng.take();
+        let mut rng = thread_rng();
 
         let coord = loop {
             let row = rng.gen_range(0..self.world.len());
@@ -56,11 +52,11 @@ impl Game {
                 break coord;
             }
         };
-        self.rng.set(rng);
         coord
     }
     
     pub fn get_free_coord5x5(&self) -> Option<(Coord, Coord, Direction)> {
+        let mut rng = thread_rng();
 
         for y in 2..self.config.height() - 3 {
             'cel: for x in 2..self.config.width() - 3 {
@@ -71,7 +67,6 @@ impl Game {
                         }
                     }
                 }
-                let mut rng = self.rng.take();
                 if let Some((tx, ty, direction)) = [
                     (x - 1, y, Direction::RIGHT),
                     (x + 1, y, Direction::LEFT),
@@ -83,7 +78,6 @@ impl Game {
                     })
                     .choose(&mut rng) 
                     {
-                    self.rng.set(rng);
                     let mut head_coord = Coord::new();
                     head_coord.set_x(x);
                     head_coord.set_y(y);
@@ -92,7 +86,6 @@ impl Game {
                     tail_coord.set_y(ty);
                     return Some((head_coord, tail_coord, direction));
                 } else {
-                    self.rng.set(rng);
                     continue 'cel;
                 }
                     
@@ -105,7 +98,6 @@ impl Game {
         Game {
             world: vec![vec![WorldCell::None; config.width() as usize]; config.height() as usize],
             food: vec![],
-            rng: Cell::new(rand::thread_rng()),
             snakes: HashMap::new(),
             config,
         }
@@ -161,7 +153,7 @@ impl Game {
                         return true;
                     }
                     WorldCell::Snake => {
-                        let mut rng = self.rng.take();
+                        let mut rng = thread_rng();
                         for coord in snake.points.drain(..) {
                             if rng.gen_bool(0.5f64) {
                                 // self.add_food_to(coord);
@@ -172,7 +164,6 @@ impl Game {
                                 new_world[coord.y() as usize][coord.x() as usize] = WorldCell::None;
                             }
                         }
-                        self.rng.set(rng);
                         return false;
                     }
                 }
