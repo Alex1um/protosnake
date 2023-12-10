@@ -248,14 +248,7 @@ impl Server {
 
     fn announce(&mut self) {
         let announcemet = self.get_announcement();
-        let ar = self.sockets.socket.send_to(&announcemet.write_to_bytes().expect("write announcement"), "239.192.0.4");
-    }
-
-    pub fn run_local(mut srv: Server) {
-        use std::thread;
-        let mut client = Client::join("localhost:48666", &srv.name, "Admin")
-            .expect("Local client connection");
-        client.play();
+        self.sockets.socket.send_to(&announcemet.write_to_bytes().expect("write announcement"), "239.192.0.4:48667").expect("announce send");
     }
 
     fn add_local_player(&mut self) -> Client {

@@ -5,7 +5,7 @@ use ncurses::*;
 use protobuf::Message;
 
 pub fn browse() -> Option<Client> {
-    let sockets = Sockets::new3(true);
+    let sockets = Sockets::new(true);
     let mut server_list = HashMap::<SocketAddr, AnnouncementMsg>::new();
     let mut buf = [0;1024];
 

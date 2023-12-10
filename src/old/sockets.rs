@@ -11,7 +11,8 @@ impl Sockets {
         multicast_receiver
             .join_multicast_v4(&Ipv4Addr::new(239, 192, 0, 4), &Ipv4Addr::new(0, 0, 0, 0))
             .expect("Successful join");
-        multicast_receiver.set_nonblocking(true).expect("Successful non block");
+        multicast_receiver.set_nonblocking(true)
+            .expect("Successful non block");
 
         let socket = UdpSocket::bind("0.0.0.0:48666").expect("successful main socket bind");
         socket.set_nonblocking(nonblockin).expect("Successful non blocking main socket");
