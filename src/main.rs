@@ -40,13 +40,15 @@ fn main() {
                 }
             }
             "Server list" => {
-                browse();
+                if let Some(mut client) = browse() {
+                    client.play();
+                }
             },
             "Dirrect connect" => {
                 if let Ok(ip) = show_connect_dialog() {
                     if !ip.is_empty() {
                         let rs =  
-                        match Client::join(&ip, "Snake game", "player") {
+                        match Client::join( &ip, "Snake game", "player") {
                             Ok(mut client) => {
                                 client.play();
                             }

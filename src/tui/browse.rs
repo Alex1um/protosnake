@@ -1,17 +1,40 @@
-use std::{collections::HashMap, net::SocketAddr};
+use std::{collections::{HashMap, HashSet}, net::SocketAddr, time::Instant};
 
-use crate::{old::{sockets::Sockets, client::Client}, snakes::snakes::{GameAnnouncement, GameMessage, game_message::{AnnouncementMsg, self}}};
+use crate::{old::{sockets::Sockets, client::Client, base::Game}, snakes::snakes::{GameAnnouncement, GameMessage, game_message::{AnnouncementMsg, self}}, tui::err::print_error};
+use anyhow::{Result};
 use ncurses::*;
 use protobuf::Message;
+use std::hash::Hash;
+
+struct GameOption {
+    name: String,
+    addr: SocketAddr,
+}
+
+impl Hash for GameOption {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.addr.hash(state);
+        self.name.hash(state);
+    }
+}
+
+impl PartialEq for GameOption {
+    fn eq(&self, other: &Self) -> bool {
+        self.addr == other.addr && self.name == other.name
+    }
+}
+
+impl Eq for GameOption {}
 
 pub fn browse() -> Option<Client> {
     let sockets = Sockets::new(true);
-    let mut server_list = HashMap::<SocketAddr, AnnouncementMsg>::new();
+    let mut server_list = HashMap::<GameOption, Instant>::new();
     let mut buf = [0;1024];
 
     let mut selected = 0;
     const SERVER_PAIR: i16 = 1;
     const SERVER_SELECTED_PAIR: i16 = 2;
+    timeout(300);
     start_color();
     init_pair(SERVER_PAIR, COLOR_WHITE, COLOR_BLACK | 0b1000);
     init_pair(SERVER_SELECTED_PAIR, COLOR_WHITE, COLOR_BLUE);
@@ -23,26 +46,65 @@ pub fn browse() -> Option<Client> {
                 if let Some(tpe) = msg.Type {
                     match tpe {
                         game_message::Type::Announcement(an) => {
-                            server_list.insert(addr, an).expect("new game insert");
+                            for game in an.games {
+                                if game.can_join() {
+                                    server_list.insert(GameOption { name: game.game_name.or(Some("Annonymous".to_owned())).unwrap(), addr: addr.clone()}, Instant::now());
+                                }
+                            }
                         }
                         _ => {}
                     }
                 }
             }
         }
-        for (i, (addr, msg)) in server_list.iter().enumerate() {
+        let mut i = 0;
+        server_list.retain(|game, ins| {
+            if ins.elapsed().as_secs_f32() > 1.0f32 {
+                return false;
+            }
             if i == selected {
                 attron(COLOR_PAIR(SERVER_SELECTED_PAIR));
-                addstr(&format!("{} {}", addr.to_string(), msg.to_string()));
+                addstr(&format!("{} {}", game.name, game.addr.to_string()));
                 attroff(COLOR_PAIR(SERVER_SELECTED_PAIR));
             } else {
                 attron(COLOR_PAIR(SERVER_PAIR));
-                addstr(&format!("{} {}", addr.to_string(), msg.to_string()));
+                addstr(&format!("{} {}", game.name, game.addr.to_string()));
                 attroff(COLOR_PAIR(SERVER_PAIR));
             }
             addstr("\n");
-        }
+
+            i += 1;
+            true
+        });
+
+        let len = server_list.len();
         refresh();
+
+        let key = getch();
+        match key {
+            KEY_UP | 119 => {
+                selected = selected + len - 1;
+            }
+            KEY_DOWN | 115 => {
+                selected += 1;
+            }
+            KEY_EXIT | KEY_CANCEL | KEY_CLOSE | KEY_EOS | KEY_BREAK => {
+                return None;
+            }
+            KEY_ENTER | 10 => {
+                let key = server_list.keys().nth(selected).expect("selected variant exists");
+                match Client::join( key.addr.clone(), &key.name, "Player") {
+                    Ok(cl) => return Some(cl),
+                    Err(e) => {
+                        print_error(format!("Failed to connect to server: {:?}", e));
+                    }
+                }
+            }
+            _ => { }
+        }
+        if len > 0 {
+            selected %= len;
+        }
     }
     None
 }
