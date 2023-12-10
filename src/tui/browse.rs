@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, net::SocketAddr, time::Instant};
+use std::{collections::{HashMap, HashSet}, net::{SocketAddr, UdpSocket, Ipv4Addr}, time::Instant};
 
 use crate::{old::{sockets::Sockets, client::Client, base::Game}, snakes::snakes::{GameAnnouncement, GameMessage, game_message::{AnnouncementMsg, self}}, tui::err::print_error};
 use anyhow::{Result};
@@ -27,7 +27,10 @@ impl PartialEq for GameOption {
 impl Eq for GameOption {}
 
 pub fn browse() -> Option<Client> {
-    let sockets = Sockets::new(true);
+    let multicast_receiver = UdpSocket::bind("0.0.0.0:48667").expect("successful bind");
+    multicast_receiver
+        .join_multicast_v4(&Ipv4Addr::new(239, 192, 0, 4), &Ipv4Addr::new(0, 0, 0, 0))
+        .expect("Successful join");
     let mut server_list = HashMap::<GameOption, Instant>::new();
     let mut buf = [0;1024];
 
@@ -41,7 +44,7 @@ pub fn browse() -> Option<Client> {
 
     loop {
         clear();
-        if let Ok((len, addr)) = sockets.multicast_receiver.recv_from(&mut buf) {
+        if let Ok((len, addr)) = multicast_receiver.recv_from(&mut buf) {
             if let Ok(msg) = GameMessage::parse_from_bytes(&buf[..len]) {
                 if let Some(tpe) = msg.Type {
                     match tpe {
@@ -106,5 +109,4 @@ pub fn browse() -> Option<Client> {
             selected %= len;
         }
     }
-    None
 }

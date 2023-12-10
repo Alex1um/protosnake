@@ -101,7 +101,6 @@ impl Client {
 
         let pid = Self::wait_ack(&mut sockets)?;
         sockets.socket.set_nonblocking(true);
-        sockets.multicast_receiver.set_nonblocking(true);
         Ok(Client {
             game: Game::new(config),
             player_name: player_name.to_owned(),
