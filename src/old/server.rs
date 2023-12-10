@@ -251,10 +251,10 @@ impl Server {
         self.sockets.socket.send_to(&announcemet.write_to_bytes().expect("write announcement"), "239.192.0.4:48667").expect("announce send");
     }
 
-    fn add_local_player(&mut self) -> Client {
+    fn add_local_player(&mut self, name: &str) -> Client {
         let local_client = Client::new(
             self.game.config.clone(),
-            "Admin".to_owned(),
+            String::from(name),
             0,
         );
         let mut player = GamePlayer::new();
@@ -279,9 +279,9 @@ impl Server {
         local_client
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self, player_name: &str) {
         // endwin();
-        let mut client = self.add_local_player();
+        let mut client = self.add_local_player(player_name);
         client.prepare();
         let mut game_timestamp = Instant::now();
         let mut announce_timestamp = Instant::now();

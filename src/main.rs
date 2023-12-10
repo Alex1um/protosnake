@@ -19,11 +19,13 @@ fn main() {
     curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
     // raw();
     keypad(stdscr(), true);
+    let mut player_name = "Player".to_owned();
 
-    if let Ok(option) = menu::show_menu(vec!["Start", "Server list", "Dirrect connect", "Exit"]) {
+    if let Ok(option) = menu::show_menu(vec!["Start", "Server list", "Dirrect connect", "Exit"], &mut player_name) {
         match option {
             "Start" => {
                 let mut options = vec![
+                    NumInput::str_default("Server Name", "Snake game"),
                     NumInput::new("width"),
                     NumInput::new("height"),
                     NumInput::new("max food"),
@@ -31,16 +33,16 @@ fn main() {
                     ];
                 if let Ok(_) = config::show_menu_config(&mut options) {
                     let mut cfg = GameConfig::new();
-                    cfg.set_width(options[0].value.expect("width"));
-                    cfg.set_height(options[1].value.expect("height"));
-                    cfg.set_food_static(options[2].value.expect("food"));
-                    cfg.set_state_delay_ms(options[3].value.expect("state delay"));
-                    let mut srv = Server::new(cfg, "Snake game".to_owned());
-                    srv.run();
+                    cfg.set_width(options[1].value);
+                    cfg.set_height(options[2].value);
+                    cfg.set_food_static(options[3].value);
+                    cfg.set_state_delay_ms(options[4].value);
+                    let mut srv = Server::new(cfg, options[0].raw.clone());
+                    srv.run(&player_name);
                 }
             }
             "Server list" => {
-                if let Some(mut client) = browse() {
+                if let Some(mut client) = browse(&player_name) {
                     client.play();
                 }
             },
@@ -48,7 +50,7 @@ fn main() {
                 if let Ok(ip) = show_connect_dialog() {
                     if !ip.is_empty() {
                         let rs =  
-                        match Client::join( &ip, "Snake game", "player") {
+                        match Client::join( &ip, "Snake game", &player_name) {
                             Ok(mut client) => {
                                 client.play();
                             }

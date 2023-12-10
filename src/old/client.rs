@@ -80,7 +80,7 @@ impl Client {
 
     pub fn join<T>(addr: T, game_name: &str, player_name: &str) -> Result<Self>
     where T: ToSocketAddrs {
-        let mut sockets = Sockets::new2(false);
+        let mut sockets = Sockets::new3(false);
         sockets.socket.connect(&addr)?;
         let mut msg = GameMessage::new();
         msg.set_discover(DiscoverMsg::new());

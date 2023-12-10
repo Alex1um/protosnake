@@ -3,17 +3,26 @@ use crate::tui::err::print_error;
 
 pub struct NumInput<'a> {
     pub name: &'a str,
-    pub value: Option<i32>,
-    raw: String,
+    pub value: i32,
+    pub raw: String,
+    is_number: bool,
 }
 
 impl NumInput<'_> {
     pub fn new<'a>(name: &'a str) -> NumInput<'a> {
-        NumInput { name, value: None, raw: String::new() }
+        NumInput { name, value: i32::default(), raw: String::new(), is_number: true }
     }
     
     pub fn default<'a>(name: &'a str, value: i32) -> NumInput<'a> {
-        NumInput { name, value: Some(value), raw: value.to_string() }
+        NumInput { name, value: value, raw: value.to_string(), is_number: true }
+    }
+    
+    pub fn str<'a>(name: &'a str) -> NumInput<'a> {
+        NumInput { name, value: i32::default(), raw: String::new(), is_number: false }
+    }
+    
+    pub fn str_default<'a>(name: &'a str, value: &'a str) -> NumInput<'a> {
+        NumInput { name, value: i32::default(), raw: String::from(value), is_number: false }
     }
 
     pub(self) fn print_nc(&self) {
@@ -92,16 +101,18 @@ pub fn show_menu_config(inputs: &mut Vec<NumInput>) -> Result<(), ()> {
                 return Err(())
             }
             48..=57 => { // digits
-                if selected < inputs.len() {
+                let selected_raw = &mut inputs[selected].raw;
+                selected_raw.push(char::from_u32(key as u32).unwrap());
+            }
+            97..=122 | 65..=90 | 95 | 32 => { 
+                if !inputs[selected].is_number {
                     let selected_raw = &mut inputs[selected].raw;
                     selected_raw.push(char::from_u32(key as u32).unwrap());
                 }
             }
             KEY_BACKSPACE | 264 => {
-                if selected < inputs.len() {
-                    let selected_raw = &mut inputs[selected].raw;
-                    selected_raw.pop();
-                }
+                let selected_raw = &mut inputs[selected].raw;
+                selected_raw.pop();
             }
             KEY_ENTER | 10 => {
                 if selected == BUTTONS_ROW {
@@ -112,16 +123,18 @@ pub fn show_menu_config(inputs: &mut Vec<NumInput>) -> Result<(), ()> {
                         1 => {
                             let mut all_valid = true;
                             for e in inputs.iter_mut() {
-                                match e.raw.parse() {
-                                    Err(e) => {
-                                        print_error(e);
-                                        all_valid = false;
-                                        break;
-                                    }
-                                    Ok(rs) => {
-                                        e.value = Some(rs);
-                                    }
-                                } 
+                                if e.is_number {
+                                    match e.raw.parse() {
+                                        Err(e) => {
+                                            print_error(e);
+                                            all_valid = false;
+                                            break;
+                                        }
+                                        Ok(rs) => {
+                                            e.value = rs;
+                                        }
+                                    } 
+                                }
                             }
                             if all_valid {
                                 break;

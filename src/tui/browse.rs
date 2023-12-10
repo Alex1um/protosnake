@@ -26,7 +26,7 @@ impl PartialEq for GameOption {
 
 impl Eq for GameOption {}
 
-pub fn browse() -> Option<Client> {
+pub fn browse(player_name: &str) -> Option<Client> {
     let multicast_receiver = UdpSocket::bind("0.0.0.0:48667").expect("successful bind");
     multicast_receiver
         .join_multicast_v4(&Ipv4Addr::new(239, 192, 0, 4), &Ipv4Addr::new(0, 0, 0, 0))
@@ -63,6 +63,9 @@ pub fn browse() -> Option<Client> {
         let mut i = 0;
         server_list.retain(|game, ins| {
             if ins.elapsed().as_secs_f32() > 1.0f32 {
+                if selected >= i {
+                    selected -= 1;
+                }
                 return false;
             }
             if i == selected {
@@ -95,8 +98,11 @@ pub fn browse() -> Option<Client> {
                 return None;
             }
             KEY_ENTER | 10 => {
+                if len == 0 {
+                    return None;
+                }
                 let key = server_list.keys().nth(selected).expect("selected variant exists");
-                match Client::join( key.addr.clone(), &key.name, "Player") {
+                match Client::join( key.addr.clone(), &key.name, player_name) {
                     Ok(cl) => return Some(cl),
                     Err(e) => {
                         print_error(format!("Failed to connect to server: {:?}", e));
