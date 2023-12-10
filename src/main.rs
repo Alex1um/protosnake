@@ -1,5 +1,3 @@
-#![feature(variant_count)]
-
 use ncurses::*;
 // mod snakes;
 mod tui;
