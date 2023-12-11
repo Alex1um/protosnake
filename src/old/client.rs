@@ -13,6 +13,7 @@ use ncurses::*;
 struct PendingMsg {
     msg: GameMessage,
     send_time: Option<Instant>,
+    send_count: u32,
 }
 
 impl PendingMsg {
@@ -20,7 +21,14 @@ impl PendingMsg {
         PendingMsg {
             msg,
             send_time: None,
+            send_count: 0,
         }
+    }
+
+    pub fn send(&mut self, sockets: &mut Sockets, addr: SocketAddr) -> Result<()> {
+        sockets.socket.send_to(&self.msg.write_to_bytes()?, addr)?;
+        self.send_count += 1;
+        Ok(())
     }
 }
 
@@ -222,18 +230,19 @@ impl Client {
     fn check_pending(&mut self, addr: SocketAddr) {
         let delay = self.game.config.state_delay_ms() as u128;
         let now = Instant::now();
-        for (_, v) in self.pending_msgs.iter() {
+        self.pending_msgs.retain(|k, v| {
             match v.send_time {
                 None => {
-                    self.sockets.socket.send_to(&v.msg.write_to_bytes().expect("can write gamemessage to bytes"), addr);
+                    v.send(&mut self.sockets, addr).expect("Correct send")
                 }
                 Some(t) => {
                     if (now - t).as_millis() > delay {
-                        self.sockets.socket.send_to(&v.msg.write_to_bytes().expect("can write gamemessage to bytes"), addr);
+                        v.send(&mut self.sockets, addr).expect("Correct send")
                     }
                 }
             }
-        }
+            return v.send_count <= 2
+        });
     }
 
     fn process_ack(&mut self, seq: i64) {
@@ -289,6 +298,7 @@ impl Client {
                 }
             }
             self.check_pending(addr);
+            eprintln!("current pending: {}", self.pending_msgs.len());
         }
         true
     }
