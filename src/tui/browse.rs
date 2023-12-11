@@ -1,6 +1,6 @@
 use std::{collections::{HashMap, HashSet}, net::{SocketAddr, UdpSocket, Ipv4Addr}, time::Instant};
 
-use crate::{old::{sockets::Sockets, client::Client, base::Game}, snakes::snakes::{GameAnnouncement, GameMessage, game_message::{AnnouncementMsg, self}}, tui::err::print_error};
+use crate::{old::{sockets::Sockets, client::Client, base::Game}, snakes::snakes::{GameAnnouncement, GameMessage, game_message::{AnnouncementMsg, self}, NodeRole}, tui::{err::print_error, modal::show_modal}};
 use anyhow::{Result};
 use ncurses::*;
 use protobuf::Message;
@@ -102,7 +102,18 @@ pub fn browse(player_name: &str) -> Option<Client> {
                     return None;
                 }
                 let key = server_list.keys().nth(selected).expect("selected variant exists");
-                match Client::join( key.addr.clone(), &key.name, player_name) {
+                let role = match show_modal("Select role", vec!["Cancel", "Player", "Viewer"]) {
+                    "Player" => {
+                        NodeRole::NORMAL
+                    }
+                    "Viewer" => {
+                        NodeRole::VIEWER
+                    }
+                    _ => {
+                        continue;
+                    }
+                };
+                match Client::join( key.addr.clone(), &key.name, player_name, role) {
                     Ok(cl) => return Some(cl),
                     Err(e) => {
                         print_error(format!("Failed to connect to server: {:?}", e));

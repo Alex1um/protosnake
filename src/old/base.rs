@@ -178,7 +178,7 @@ impl Game {
         }
     }
 
-    pub fn apply_state(&mut self, state: MessageField<GameState>) {
+    pub fn apply_state(&mut self, state: &GameState) {
         self.snakes.clear();
         for row in self.world.iter_mut() {
             row.fill(WorldCell::None);

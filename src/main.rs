@@ -20,51 +20,46 @@ fn main() {
     // raw();
     keypad(stdscr(), true);
     let mut player_name = "Player".to_owned();
-
-    if let Ok(option) = menu::show_menu(vec!["Start", "Server list", "Dirrect connect", "Exit"], &mut player_name) {
-        match option {
-            "Start" => {
-                let mut options = vec![
-                    NumInput::str_default("Server Name", "Snake game"),
-                    NumInput::new("width"),
-                    NumInput::new("height"),
-                    NumInput::new("max food"),
-                    NumInput::new("state delay ms"),
-                    ];
-                if let Ok(_) = config::show_menu_config(&mut options) {
-                    let mut cfg = GameConfig::new();
-                    cfg.set_width(options[1].value);
-                    cfg.set_height(options[2].value);
-                    cfg.set_food_static(options[3].value);
-                    cfg.set_state_delay_ms(options[4].value);
-                    let mut srv = Server::new(cfg, options[0].raw.clone());
-                    srv.run(&player_name);
-                }
-            }
-            "Server list" => {
-                if let Some(mut client) = browse(&player_name) {
-                    client.play();
-                }
-            },
-            "Dirrect connect" => {
-                if let Ok(ip) = show_connect_dialog() {
-                    if !ip.is_empty() {
-                        let rs =  
-                        match Client::join( &ip, "Snake game", &player_name) {
-                            Ok(mut client) => {
-                                client.play();
-                            }
-                            Err(err) => {
-                                print_error(format!("Failed to connect: {}", err));
-                            }
-                        };
+    loop {
+        if let Ok(option) = menu::show_menu(vec!["Start", "Server list", "Dirrect connect", "Exit"], &mut player_name) {
+            match option {
+                "Start" => {
+                    let mut options = vec![
+                        NumInput::str_default("Server Name", "Snake game"),
+                        NumInput::new("width"),
+                        NumInput::new("height"),
+                        NumInput::new("max food"),
+                        NumInput::new("state delay ms"),
+                        ];
+                    if let Ok(_) = config::show_menu_config(&mut options) {
+                        let mut cfg = GameConfig::new();
+                        cfg.set_width(options[1].value);
+                        cfg.set_height(options[2].value);
+                        cfg.set_food_static(options[3].value);
+                        cfg.set_state_delay_ms(options[4].value);
+                        let mut srv = Server::new(cfg, options[0].raw.clone());
+                        srv.run(&player_name);
                     }
                 }
+                "Server list" => {
+                    if let Some(mut client) = browse(&player_name) {
+                        client.play();
+                    }
+                },
+                "Dirrect connect" => {
+                    if let Some(mut client) = show_connect_dialog(&player_name) {
+                        client.play();
+                    }
+                }
+                "Exit" => {
+                    break;
+                }
+                _ => {
+                    break;
+                }
             }
-            _ => {}
         }
     }
-
     endwin();
 
 }

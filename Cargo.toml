@@ -13,6 +13,8 @@ serde = "1.0.176"
 serde_json = "1.0.104"
 rand = "0.8.5"
 anyhow = "1.0.75"
+# crossterm = "0.27.0"
+# ratatui = "0.24.0"
 
 [build]
 ignore = ["./src/old/**"]

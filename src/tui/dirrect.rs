@@ -1,6 +1,6 @@
 
 use ncurses::*;
-use crate::tui::err::print_error;
+use crate::{tui::{err::print_error, modal::show_modal}, old::client::Client, snakes::snakes::NodeRole};
 
 pub struct IpInput<'a> {
     pub name: &'a str,
@@ -12,8 +12,8 @@ impl IpInput<'_> {
         IpInput { name, raw: String::new() }
     }
     
-    pub fn default<'a>(name: &'a str, value: i32) -> IpInput<'a> {
-        IpInput { name, raw: value.to_string() }
+    pub fn default<'a>(name: &'a str, value: &str) -> IpInput<'a> {
+        IpInput { name, raw: String::from(value) }
     }
 
     pub(self) fn print_nc(&self) {
@@ -21,9 +21,11 @@ impl IpInput<'_> {
     }
 }
 
-pub fn show_connect_dialog() -> Result<String, ()> {
-    let mut input = IpInput::new("Direct connect");
-    let mut input_selected = false;
+pub fn show_connect_dialog(player_name: &str) -> Option<Client> {
+    let mut inputs = vec![IpInput::new("Direct connect"), IpInput::default("Game name", "Snake game")];
+    let mut selected = 0;
+    let buttons_row = 2;
+    let len = 3;
 
     const INPUT_PAIR: i16 = 1;
     const INPUT_SELECTED_PAIR: i16 = 2;
@@ -34,25 +36,25 @@ pub fn show_connect_dialog() -> Result<String, ()> {
     init_pair(INPUT_SELECTED_PAIR, COLOR_WHITE, COLOR_BLUE);
     init_pair(SUMBMIT_PAIR, COLOR_BLACK, COLOR_GREEN | 0b1000);
     init_pair(CANCEL_PAIR, COLOR_BLACK, COLOR_RED | 0b1000);
-    let mut selected_button = 0;
+    let mut selected_button = 1;
     
     loop {
         clear();
-        addstr(input.name);
-        addstr("\n");
-        if input_selected {
-            attron(COLOR_PAIR(INPUT_SELECTED_PAIR));
-            addstr(&format!("{:_<20}", input.raw));
-            // e.print_nc();
-            attroff(COLOR_PAIR(INPUT_SELECTED_PAIR));
-        } else {
-            attron(COLOR_PAIR(INPUT_PAIR));
-            addstr(&format!("{:_<20}", input.raw));
-            // e.print_nc();
-            attroff(COLOR_PAIR(INPUT_PAIR));
+        for (i, input) in inputs.iter().enumerate() {
+            addstr(input.name);
+            addstr("\n");
+            if i == selected {
+                attron(COLOR_PAIR(INPUT_SELECTED_PAIR));
+                addstr(&format!("{:_<20}", input.raw));
+                attroff(COLOR_PAIR(INPUT_SELECTED_PAIR));
+            } else {
+                attron(COLOR_PAIR(INPUT_PAIR));
+                addstr(&format!("{:_<20}", input.raw));
+                attroff(COLOR_PAIR(INPUT_PAIR));
+            }
+            addstr("\n");
         }
-        addstr("\n");
-        if !input_selected {
+        if selected == buttons_row {
             if selected_button == 0 {
                 attron(COLOR_PAIR(CANCEL_PAIR));
                 addstr("Cancel");
@@ -76,29 +78,60 @@ pub fn show_connect_dialog() -> Result<String, ()> {
 
         let key = getch();
         match key {
-            KEY_UP | 119 | KEY_DOWN | 115 => {
-                input_selected = !input_selected;
+            KEY_UP => {
+                selected += len - 1;
+                selected %= len;
+            }
+            KEY_DOWN => {
+                selected += 1;
+                selected %= len;
             }
             KEY_LEFT | KEY_RIGHT => {
                 selected_button ^= 1;
             }
             KEY_EXIT | KEY_CANCEL | KEY_CLOSE | KEY_EOS | KEY_BREAK => {
-                return Err(())
+                return None
             }
             48..=57 | 46 | 58 => { // digits | : | .
-                input.raw.push(char::from_u32(key as u32).unwrap());
+                if selected < buttons_row {
+                    inputs[selected].raw.push(char::from_u32(key as u32).unwrap());
+                }
+            }
+            65..=90 | 97..=122 => { // A-Z | a-z
+                if selected == 1 {
+                    inputs[selected].raw.push(char::from_u32(key as u32).unwrap());
+                }
             }
             KEY_BACKSPACE | 264 => {
-                input.raw.pop();
+                if selected < buttons_row {
+                    inputs[selected].raw.pop();
+                }
             }
             KEY_ENTER | 10 => {
-                if !input_selected {
+                if selected == buttons_row {
                     match selected_button {
                         0 => {
-                            return Err(())
+                            return None
                         }
                         1 => {
-                            return Ok(input.raw)
+                            let role = match show_modal("Select role", vec!["Cancel", "Player", "Viewer"]) {
+                                "Player" => {
+                                    NodeRole::NORMAL
+                                }
+                                "Viewer" => {
+                                    NodeRole::VIEWER
+                                }
+                                _ => {
+                                    continue;
+                                }
+                            };
+                            match Client::join(&inputs[0].raw, &inputs[1].raw, player_name, role) {
+                                Ok(client) => return Some(client),
+                                Err(e) => {
+                                    print_error(e);
+                                    return None;
+                                },
+                            }
                         }
                         _ => {}
                     }

@@ -256,6 +256,7 @@ impl Server {
             self.game.config.clone(),
             String::from(name),
             0,
+            NodeRole::MASTER
         );
         let mut player = GamePlayer::new();
         player.set_name("Admin".to_owned());

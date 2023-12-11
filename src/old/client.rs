@@ -1,4 +1,4 @@
-use std::net::{ToSocketAddrs, SocketAddr};
+use std::{net::{ToSocketAddrs, SocketAddr}, time::Instant, collections::HashMap};
 
 use protobuf::Message;
 
@@ -8,32 +8,46 @@ use super::{base::Game, sockets::Sockets};
 
 use anyhow::{Result, bail};
 
-use std::thread;
-        
 use ncurses::*;
+
+struct PendingMsg {
+    msg: GameMessage,
+    send_time: Option<Instant>,
+}
+
+impl PendingMsg {
+    pub fn new(msg: GameMessage) -> Self {
+        PendingMsg {
+            msg,
+            send_time: None,
+        }
+    }
+}
 
 pub struct Client {
     game: Game,
     player_name: String,
     sockets: Sockets,
     id: i32,
+    role: NodeRole,
+    seq: i64,
+    last_mesg: Instant,
+    pending_msgs: HashMap<i64, PendingMsg>
 }
 
 impl Client {
 
-    pub fn new(config: GameConfig, player_name: String, player_id: i32) -> Self {
+    pub fn new(config: GameConfig, player_name: String, player_id: i32, role: NodeRole) -> Self {
         Client {
             game: Game::new(config),
             player_name,
             sockets: Sockets::new2(true),
             id: player_id,
+            role,
+            seq: 0,
+            last_mesg: Instant::now(),
+            pending_msgs: HashMap::new(),
         }
-    }
-
-    fn recv_game_message(&self) -> Result<GameMessage> {
-        let mut buf = [0u8; 1024];
-        let (len, addr) = self.sockets.socket.recv_from(&mut buf)?;
-        Ok(GameMessage::parse_from_bytes(&buf)?)
     }
 
     fn wait_announcement(sockets: &mut Sockets, game_name: &str) -> Result<GameConfig> {
@@ -59,27 +73,27 @@ impl Client {
         }
     }
 
-    fn wait_ack(sockets: &mut Sockets) -> Result<i32> {
-        let mut buf = [0u8; 1024];
-        let len = sockets.socket.recv(&mut buf)?;
-        let gm = &GameMessage::parse_from_bytes(&buf[..len])?;
-        if let Some(ref r#type) = gm.Type {
-            match r#type {
-                game_message::Type::Ack(ack) => {
-                    return Ok(gm.receiver_id())
+    pub fn join<T>(addr: T, game_name: &str, player_name: &str, role: NodeRole) -> Result<Self>
+    where T: ToSocketAddrs {
+
+        fn wait_ack(sockets: &mut Sockets) -> Result<i32> {
+            let mut buf = [0u8; 1024];
+            let len = sockets.socket.recv(&mut buf)?;
+            let gm = &GameMessage::parse_from_bytes(&buf[..len])?;
+            if let Some(ref r#type) = gm.Type {
+                match r#type {
+                    game_message::Type::Ack(ack) => {
+                        return Ok(gm.receiver_id())
+                    }
+                    _ => {
+                        bail!("Unexpected message from server");
+                    }
                 }
-                _ => {
-                    bail!("Unexpected message from server");
-                }
+            } else {
+                bail!("wrong message type were received: {:?}", gm.Type)
             }
-        } else {
-            bail!("wrong message type were received: {:?}", gm.Type)
         }
 
-    }
-
-    pub fn join<T>(addr: T, game_name: &str, player_name: &str) -> Result<Self>
-    where T: ToSocketAddrs {
         let mut sockets = Sockets::new3(false);
         sockets.socket.connect(&addr)?;
         let mut msg = GameMessage::new();
@@ -90,7 +104,7 @@ impl Client {
 
         let mut join_msg = JoinMsg::new();
         join_msg.set_player_type(PlayerType::HUMAN);
-        join_msg.set_requested_role(NodeRole::NORMAL);
+        join_msg.set_requested_role(role);
         join_msg.set_game_name(game_name.to_string());
         join_msg.set_player_name(player_name.to_string());
         let mut msg = GameMessage::new();
@@ -99,13 +113,17 @@ impl Client {
         let bytes = msg.write_to_bytes()?;
         sockets.socket.send(&bytes)?;
 
-        let pid = Self::wait_ack(&mut sockets)?;
+        let pid = wait_ack(&mut sockets)?;
         sockets.socket.set_nonblocking(true);
         Ok(Client {
             game: Game::new(config),
             player_name: player_name.to_owned(),
             sockets,
             id: pid,
+            role,
+            seq: 0,
+            last_mesg: Instant::now(),
+            pending_msgs: HashMap::new(),
         })
         
     }
@@ -163,40 +181,37 @@ impl Client {
         refresh();
     }
 
-    fn send_steer(&self, dir: Direction, addr: SocketAddr) {
+    fn send_steer(&mut self, dir: Direction) {
         let mut steer = SteerMsg::new();
         steer.set_direction(dir);
         let mut gm = GameMessage::new();
         gm.set_sender_id(self.id);
-        gm.set_msg_seq(0);
+        gm.set_msg_seq(self.seq);
         gm.set_steer(steer);
-        if let Err(e) = self.sockets.socket.send_to(&gm.write_to_bytes().expect("bytes"), addr) {
-            panic!("{:?}", e);
-        }
+        self.pending_msgs.insert(self.seq, PendingMsg::new(gm));
+        self.seq += 1;
     }
 
-    fn send_change_player(&self, addr: SocketAddr) {
+    fn send_change_player(&mut self) {
         let mut chnge = RoleChangeMsg::new();
         chnge.set_sender_role(NodeRole::NORMAL);
         let mut gm = GameMessage::new();
         gm.set_sender_id(self.id);
-        gm.set_msg_seq(0);
+        gm.set_msg_seq(self.seq);
         gm.set_role_change(chnge);
-        if let Err(e) = self.sockets.socket.send_to(&gm.write_to_bytes().expect("bytes"), addr) {
-            panic!("{:?}", e);
-        }
+        self.pending_msgs.insert(self.seq, PendingMsg::new(gm));
+        self.seq += 1;
     }
 
-    fn send_change_viewer(&self, addr: SocketAddr) {
+    fn send_change_viewer(&mut self) {
         let mut chnge = RoleChangeMsg::new();
         chnge.set_sender_role(NodeRole::VIEWER);
         let mut gm = GameMessage::new();
         gm.set_sender_id(self.id);
-        gm.set_msg_seq(0);
+        gm.set_msg_seq(self.seq);
         gm.set_role_change(chnge);
-        if let Err(e) = self.sockets.socket.send_to(&gm.write_to_bytes().expect("bytes"), addr) {
-            panic!("{:?}", e);
-        }
+        self.pending_msgs.insert(self.seq, PendingMsg::new(gm));
+        self.seq += 1;
     }
 
     pub fn prepare(&mut self) {
@@ -204,16 +219,45 @@ impl Client {
         timeout(300);
     }
 
-    pub fn action(&mut self) {
+    fn check_pending(&mut self, addr: SocketAddr) {
+        let delay = self.game.config.state_delay_ms() as u128;
+        let now = Instant::now();
+        for (_, v) in self.pending_msgs.iter() {
+            match v.send_time {
+                None => {
+                    self.sockets.socket.send_to(&v.msg.write_to_bytes().expect("can write gamemessage to bytes"), addr);
+                }
+                Some(t) => {
+                    if (now - t).as_millis() > delay {
+                        self.sockets.socket.send_to(&v.msg.write_to_bytes().expect("can write gamemessage to bytes"), addr);
+                    }
+                }
+            }
+        }
+    }
+
+    fn process_ack(&mut self, seq: i64) {
+        self.pending_msgs.remove(&seq);
+    }
+
+    pub fn action(&mut self) -> bool {
         let mut buf = [0u8; 1024];
         static mut cur_addr: Option<SocketAddr> = None;
         if let Ok((len, addr)) = self.sockets.socket.recv_from(&mut buf) {
-            if let Ok(gm) = GameMessage::parse_from_bytes(&buf[..len]) {
-                if let Some(tpe) = gm.Type {
+            if len == 0 {
+                return false;
+            }
+            if let Ok(gm) = &GameMessage::parse_from_bytes(&buf[..len]) {
+                if let Some(tpe) = &gm.Type {
                     match tpe {
                         game_message::Type::State(state) => {
-                            self.game.apply_state(state.state);
-                            self.print();
+                            if let Some(state) = state.state.as_ref() {
+                                self.game.apply_state(state);
+                                self.print();
+                            }
+                        }
+                        game_message::Type::Ack(_) => {
+                            self.process_ack(gm.msg_seq());
                         }
                         _ => {}
                     }
@@ -221,22 +265,22 @@ impl Client {
             }
             match getch() {
                 KEY_LEFT => {
-                    self.send_steer(Direction::LEFT, addr);
+                    self.send_steer(Direction::LEFT);
                 }
                 KEY_RIGHT => {
-                    self.send_steer(Direction::RIGHT, addr);
+                    self.send_steer(Direction::RIGHT);
                 }
                 KEY_UP => {
-                    self.send_steer(Direction::UP, addr);
+                    self.send_steer(Direction::UP);
                 }
                 KEY_DOWN => {
-                    self.send_steer(Direction::DOWN, addr);
+                    self.send_steer(Direction::DOWN);
                 }
                 KEY_ENTER | 10 => {
-                    self.send_change_player(addr);
+                    self.send_change_player();
                 }
                 KEY_BACKSPACE => {
-                    self.send_change_viewer(addr);
+                    self.send_change_viewer();
                 }
                 ERR => {
 
@@ -244,13 +288,17 @@ impl Client {
                 _  => {
                 }
             }
+            self.check_pending(addr);
         }
+        true
     }
 
     pub fn play(&mut self) {
         self.prepare();
         loop {
-            self.action();
+            if !self.action() {
+                break
+            }
         }
     }
 
