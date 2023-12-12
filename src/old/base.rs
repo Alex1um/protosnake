@@ -20,7 +20,8 @@ pub struct Game {
     pub food: Vec<Coord>,
     pub snakes: HashMap<i32, Snake>,
     pub config: GameConfig,
-    pub players: Vec<GamePlayer>,
+    pub players: HashMap<i32, GamePlayer>,
+    pub order: i32,
 }
 
 impl Game {
@@ -102,7 +103,8 @@ impl Game {
             food: vec![],
             snakes: HashMap::new(),
             config,
-            players: Vec::new(),
+            players: HashMap::new(),
+            order: 0,
         }
     }
 
@@ -115,9 +117,10 @@ impl Game {
         self.world[coord.y() as usize][coord.x() as usize] = WorldCell::None;
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> Vec<i32> {
         let snakes = &mut self.snakes;
         let mut new_world  = self.world.clone();
+        let mut dead_playe_ids = Vec::<i32>::new();
         snakes.retain(|id, snake| {
             if let Some(head) = snake.points.last() {
                 let mut new_x = head.x.unwrap();
@@ -153,6 +156,9 @@ impl Game {
                         self.food.retain(|e| e != &new_coord);
                         snake.points.push(new_coord);
                         new_world[new_y][new_x] = WorldCell::Snake;
+                        if let Some(player) = self.players.get_mut(&snake.player_id()) {
+                            player.set_score(player.score() + 10);
+                        }
                         return true;
                     }
                     WorldCell::Snake => {
@@ -167,18 +173,26 @@ impl Game {
                                 new_world[coord.y() as usize][coord.x() as usize] = WorldCell::None;
                             }
                         }
+                        dead_playe_ids.push(*id);
                         return false;
                     }
                 }
-            } else { false }
+            } else { 
+                dead_playe_ids.push(*id);
+                false
+            }
         });
 
         self.world = new_world;
         
-        for _ in 0..(self.config.food_static()- self.food.len() as i32) {
+        for _ in 0..(self.config.food_static() - self.food.len() as i32) {
             let coord = self.get_free_random_coord();
             self.add_food_to(coord);
         }
+
+        self.order += 1;
+
+        return dead_playe_ids;
     }
 
     pub fn apply_state(&mut self, state: GameState, seq: i64) {
@@ -206,7 +220,9 @@ impl Game {
             self.world[((coord.y() + height) % height) as usize][((coord.x() + width) % width) as usize] = WorldCell::Food;
         }
         let game_players = state.players.unwrap();
-        self.players = game_players.players;
+        for player in game_players.players {
+            self.players.insert(player.id(), player);
+        }
         self.food = state.foods;
     }
 

@@ -359,7 +359,7 @@ impl Client {
                     }
                     NodeRole::NORMAL | NodeRole::VIEWER => {
                         // for player in 
-                        for player in self.game.players.iter() {
+                        for player in self.game.players.values() {
                             if player.role.unwrap().unwrap() == NodeRole::DEPUTY {
                                 if let Err(e) = self.sockets.socket.connect(player.ip_address()) {
                                     print_error(e);
