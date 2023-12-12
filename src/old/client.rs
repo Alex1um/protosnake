@@ -2,7 +2,7 @@ use std::{net::{ToSocketAddrs, SocketAddr}, time::Instant, collections::HashMap}
 
 use protobuf::Message;
 
-use crate::{snakes::snakes::{GameConfig, game_message::{JoinMsg, self, StateMsg, SteerMsg, DiscoverMsg, RoleChangeMsg, AckMsg}, PlayerType, NodeRole, GameMessage, game_state::{Coord, snake::SnakeState}, Direction}, tui::err::print_error};
+use crate::{snakes::snakes::{GameConfig, game_message::{JoinMsg, self, StateMsg, SteerMsg, DiscoverMsg, RoleChangeMsg, AckMsg, PingMsg}, PlayerType, NodeRole, GameMessage, game_state::{Coord, snake::SnakeState}, Direction}, tui::err::print_error};
 
 use super::{base::Game, sockets::Sockets};
 
@@ -233,7 +233,7 @@ impl Client {
     }
 
     fn check_pending(&mut self) {
-        let delay = self.game.config.state_delay_ms() as u128;
+        let delay = self.game.config.state_delay_ms() as u128 / 10;
         let now = Instant::now();
         self.pending_msgs.retain(|_, v| {
             match v.send_time {
@@ -246,7 +246,7 @@ impl Client {
                     }
                 }
             }
-            return v.send_count <= 2
+            return v.send_count <= 5
         });
     }
 
@@ -259,6 +259,21 @@ impl Client {
         gm.set_ack(AckMsg::new());
         gm.set_msg_seq(seq);
         self.sockets.socket.send(&gm.write_to_bytes().expect("written ack bytes")).expect("ack send");
+    }
+
+    fn send_ping(&mut self) {
+        let mut gm = GameMessage::new();
+        gm.set_ping(PingMsg::new());
+        self.pending_msgs.insert(self.seq, gm);
+        self.seq += 1;
+    }
+
+    fn check_ping(&mut self) {
+        let now = Instant::now();
+        let delay = self.game.config.state_delay_ms() as u128 / 10;
+        if (now - self.last_mesg).as_millis() > delay {
+            self.send_ping();
+        }
     }
 
     pub fn action(&mut self) -> bool {
@@ -284,6 +299,7 @@ impl Client {
                         }
                         game_message::Type::Ack(_) => {
                             self.process_ack(seq);
+                            self.last_mesg = Instant::now();
                         }
                         game_message::Type::RoleChange(chnge) => {
                             self.send_ack(seq);
@@ -323,6 +339,7 @@ impl Client {
             }
             eprintln!("current pending: {}", self.pending_msgs.len());
         }
+        self.check_ping();
         self.check_pending();
         true
     }

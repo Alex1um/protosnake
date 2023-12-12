@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::process::id;
-use std::sync::Arc;
 use std::time::Instant;
 use protobuf::{Message, MessageField};
 use super::client::Client;
@@ -17,7 +15,6 @@ use super::base::{Game, WorldCell};
 
 pub struct Server {
     game: Game,
-    players: GamePlayers,
     sockets: Sockets,
     name: String,
     time_map: HashMap<i32, Instant>,
@@ -27,7 +24,6 @@ impl Server {
     pub fn new(config: GameConfig, name: String) -> Self {
         Server {
             game: Game::new(config),
-            players: GamePlayers::new(),
             sockets: Sockets::new(true),
             name: name,
             time_map: HashMap::new(),
