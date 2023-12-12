@@ -40,6 +40,7 @@ pub struct Client {
     role: NodeRole,
     seq: i64,
     last_mesg: Instant,
+    last_ping_mesg: Instant,
     pending_msgs: HashMap<i64, PendingMsg>,
     server_seq: i64,
 }
@@ -55,6 +56,7 @@ impl Client {
             role,
             seq: 0,
             last_mesg: Instant::now(),
+            last_ping_mesg: Instant::now(),
             pending_msgs: HashMap::new(),
             server_seq: 0,
         };
@@ -135,6 +137,7 @@ impl Client {
             role,
             seq: 0,
             last_mesg: Instant::now(),
+            last_ping_mesg: Instant::now(),
             pending_msgs: HashMap::new(),
             server_seq: 0,
         })
@@ -272,7 +275,7 @@ impl Client {
     fn check_ping(&mut self) {
         let now = Instant::now();
         let delay = self.game.config.state_delay_ms() as u128 / 10;
-        if (now - self.last_mesg).as_millis() > delay {
+        if (now - self.last_mesg).as_millis() > delay && (now - self.last_ping_mesg).as_millis() > delay {
             self.send_ping();
         }
     }

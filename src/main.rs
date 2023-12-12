@@ -1,16 +1,13 @@
 use ncurses::*;
-// mod snakes;
 mod tui;
 mod old;
 mod snakes;
-use old::client::Client;
 use snakes::snakes::GameConfig;
 use tui::{menu, config};
 use config::NumInput;
 use old::server::*;
 use tui::browse::browse;
 use tui::dirrect::show_connect_dialog;
-use tui::err::print_error;
 
 fn main() {
 
