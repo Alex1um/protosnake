@@ -17,8 +17,9 @@ pub enum WorldCell {
 pub struct Game {
     pub world: Vec<Vec<WorldCell>>,
     pub food: Vec<Coord>,
-    pub snakes: HashMap<i32, Snake>,
+    pub snakes: Vec<Snake>,
     pub config: GameConfig,
+    pub players: Vec<GamePlayer>,
 }
 
 impl Game {
@@ -98,8 +99,9 @@ impl Game {
         Game {
             world: vec![vec![WorldCell::None; config.width() as usize]; config.height() as usize],
             food: vec![],
-            snakes: HashMap::new(),
+            snakes: Vec::new(),
             config,
+            players: Vec::new(),
         }
     }
 
@@ -113,9 +115,10 @@ impl Game {
     }
 
     pub fn update(&mut self) {
-        let snakes = &mut self.snakes;
+        // let snakes = &mut self.snakes;
         let mut new_world  = self.world.clone();
-        snakes.retain(|pid, snake| {
+        let (alive, dead): (Vec<Snake>, Vec<Snake>) = self.snakes.into_iter().partition(|snake| {
+        // snakes.retain(|snake| {
             if let Some(head) = snake.points.last() {
                 let mut new_x = head.x.unwrap();
                 let mut new_y = head.y.unwrap();
@@ -178,7 +181,7 @@ impl Game {
         }
     }
 
-    pub fn apply_state(&mut self, state: &GameState) {
+    pub fn apply_state(&mut self, state: GameState) {
         self.snakes.clear();
         for row in self.world.iter_mut() {
             row.fill(WorldCell::None);
@@ -187,12 +190,14 @@ impl Game {
             for coord in &snake.points {
                 self.world[coord.y() as usize][coord.x() as usize] = WorldCell::Snake;
             }
-            self.snakes.entry(snake.player_id()).or_insert(snake.clone());
         }
+        self.snakes = state.snakes;
         for coord in &state.foods {
             self.world[coord.y() as usize][coord.x() as usize] = WorldCell::Food;
         }
-        self.food = state.foods.clone();
+        let game_players = *state.players;
+        self.players = game_players.players;
+        self.food = state.foods;
     }
 
 }

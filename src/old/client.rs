@@ -2,7 +2,7 @@ use std::{net::{ToSocketAddrs, SocketAddr}, time::Instant, collections::HashMap}
 
 use protobuf::Message;
 
-use crate::snakes::snakes::{GameConfig, game_message::{JoinMsg, self, StateMsg, SteerMsg, DiscoverMsg, RoleChangeMsg}, PlayerType, NodeRole, GameMessage, game_state::{Coord, snake::SnakeState}, Direction};
+use crate::{snakes::snakes::{GameConfig, game_message::{JoinMsg, self, StateMsg, SteerMsg, DiscoverMsg, RoleChangeMsg}, PlayerType, NodeRole, GameMessage, game_state::{Coord, snake::SnakeState}, Direction}, tui::err::print_error};
 
 use super::{base::Game, sockets::Sockets};
 
@@ -40,13 +40,13 @@ pub struct Client {
     role: NodeRole,
     seq: i64,
     last_mesg: Instant,
-    pending_msgs: HashMap<i64, PendingMsg>
+    pending_msgs: HashMap<i64, PendingMsg>,
 }
 
 impl Client {
 
-    pub fn new(config: GameConfig, player_name: String, player_id: i32, role: NodeRole) -> Self {
-        Client {
+    pub fn new(config: GameConfig, player_name: String, player_id: i32, role: NodeRole, addr: SocketAddr) -> Self {
+        let mut client = Client {
             game: Game::new(config),
             player_name,
             sockets: Sockets::new2(true),
@@ -55,7 +55,9 @@ impl Client {
             seq: 0,
             last_mesg: Instant::now(),
             pending_msgs: HashMap::new(),
-        }
+        };
+        client.sockets.socket.connect(addr).expect("Connection to local server");
+        client
     }
 
     fn wait_announcement(sockets: &mut Sockets, game_name: &str) -> Result<GameConfig> {
@@ -252,21 +254,22 @@ impl Client {
     pub fn action(&mut self) -> bool {
         let mut buf = [0u8; 1024];
         static mut cur_addr: Option<SocketAddr> = None;
-        if let Ok((len, addr)) = self.sockets.socket.recv_from(&mut buf) {
+        if let Ok(len) = self.sockets.socket.recv(&mut buf) {
             if len == 0 {
                 return false;
             }
-            if let Ok(gm) = &GameMessage::parse_from_bytes(&buf[..len]) {
-                if let Some(tpe) = &gm.Type {
+            if let Ok(gm) = GameMessage::parse_from_bytes(&buf[..len]) {
+                let seq = gm.msg_seq();
+                let sender_id = gm.sender_id();
+                let receiver_id = gm.receiver_id();
+                if let Some(tpe) = gm.Type {
                     match tpe {
                         game_message::Type::State(state) => {
-                            if let Some(state) = state.state.as_ref() {
-                                self.game.apply_state(state);
-                                self.print();
-                            }
+                            self.game.apply_state(*state.state);
+                            self.print();
                         }
                         game_message::Type::Ack(_) => {
-                            self.process_ack(gm.msg_seq());
+                            self.process_ack(seq);
                         }
                         _ => {}
                     }
@@ -297,7 +300,7 @@ impl Client {
                 _  => {
                 }
             }
-            self.check_pending(addr);
+            self.check_pending();
             eprintln!("current pending: {}", self.pending_msgs.len());
         }
         true
@@ -307,7 +310,27 @@ impl Client {
         self.prepare();
         loop {
             if !self.action() {
-                break
+                match self.role {
+                    NodeRole::MASTER => break,
+                    NodeRole::DEPUTY => {
+                        break;
+                    }
+                    NodeRole::NORMAL | NodeRole::VIEWER => {
+                        // for player in 
+                        for player in self.game.players.iter() {
+                            if player.role.unwrap().unwrap() == NodeRole::DEPUTY {
+                                if let Err(e) = self.sockets.socket.connect(player.ip_address()) {
+                                    print_error(e);
+                                    break;
+                                } else {
+                                    continue;
+                                }
+                            }
+                        }
+                        print_error("There is not Deputy players");
+                        break;
+                    }
+                }
             }
         }
     }
