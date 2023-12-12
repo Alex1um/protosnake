@@ -14,7 +14,6 @@ use tui::err::print_error;
 
 fn main() {
 
-
     initscr();
     curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
     // raw();

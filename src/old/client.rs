@@ -2,7 +2,7 @@ use std::{net::{ToSocketAddrs, SocketAddr}, time::Instant, collections::HashMap}
 
 use protobuf::Message;
 
-use crate::{snakes::snakes::{GameConfig, game_message::{JoinMsg, self, StateMsg, SteerMsg, DiscoverMsg, RoleChangeMsg}, PlayerType, NodeRole, GameMessage, game_state::{Coord, snake::SnakeState}, Direction}, tui::err::print_error};
+use crate::{snakes::snakes::{GameConfig, game_message::{JoinMsg, self, StateMsg, SteerMsg, DiscoverMsg, RoleChangeMsg, AckMsg}, PlayerType, NodeRole, GameMessage, game_state::{Coord, snake::SnakeState}, Direction}, tui::err::print_error};
 
 use super::{base::Game, sockets::Sockets};
 
@@ -25,8 +25,8 @@ impl PendingMsg {
         }
     }
 
-    pub fn send(&mut self, sockets: &mut Sockets, addr: SocketAddr) -> Result<()> {
-        sockets.socket.send_to(&self.msg.write_to_bytes()?, addr)?;
+    pub fn send(&mut self, sockets: &mut Sockets) -> Result<()> {
+        sockets.socket.send(&self.msg.write_to_bytes()?)?;
         self.send_count += 1;
         Ok(())
     }
@@ -41,6 +41,7 @@ pub struct Client {
     seq: i64,
     last_mesg: Instant,
     pending_msgs: HashMap<i64, PendingMsg>,
+    server_seq: i64,
 }
 
 impl Client {
@@ -55,6 +56,7 @@ impl Client {
             seq: 0,
             last_mesg: Instant::now(),
             pending_msgs: HashMap::new(),
+            server_seq: 0,
         };
         client.sockets.socket.connect(addr).expect("Connection to local server");
         client
@@ -134,6 +136,7 @@ impl Client {
             seq: 0,
             last_mesg: Instant::now(),
             pending_msgs: HashMap::new(),
+            server_seq: 0,
         })
         
     }
@@ -225,21 +228,21 @@ impl Client {
     }
 
     pub fn prepare(&mut self) {
-        self.sockets.socket.set_nonblocking(true);
-        timeout(300);
+        self.sockets.socket.set_nonblocking(true).expect("set client socket nonblocking");
+        timeout(50);
     }
 
-    fn check_pending(&mut self, addr: SocketAddr) {
+    fn check_pending(&mut self) {
         let delay = self.game.config.state_delay_ms() as u128;
         let now = Instant::now();
-        self.pending_msgs.retain(|k, v| {
+        self.pending_msgs.retain(|_, v| {
             match v.send_time {
                 None => {
-                    v.send(&mut self.sockets, addr).expect("Correct send")
+                    v.send(&mut self.sockets).expect("Correct send")
                 }
                 Some(t) => {
                     if (now - t).as_millis() > delay {
-                        v.send(&mut self.sockets, addr).expect("Correct send")
+                        v.send(&mut self.sockets).expect("Correct send")
                     }
                 }
             }
@@ -249,6 +252,13 @@ impl Client {
 
     fn process_ack(&mut self, seq: i64) {
         self.pending_msgs.remove(&seq);
+    }
+
+    fn send_ack(&mut self, seq: i64) {
+        let mut gm = GameMessage::new();
+        gm.set_ack(AckMsg::new());
+        gm.set_msg_seq(seq);
+        self.sockets.socket.send(&gm.write_to_bytes().expect("written ack bytes")).expect("ack send");
     }
 
     pub fn action(&mut self) -> bool {
@@ -265,11 +275,22 @@ impl Client {
                 if let Some(tpe) = gm.Type {
                     match tpe {
                         game_message::Type::State(state) => {
-                            self.game.apply_state(*state.state);
-                            self.print();
+                            self.send_ack(seq);
+                            if seq >= self.server_seq {
+                                self.game.apply_state(state.state.unwrap(), seq);
+                                self.print();
+                                self.server_seq = seq;
+                            }
                         }
                         game_message::Type::Ack(_) => {
                             self.process_ack(seq);
+                        }
+                        game_message::Type::RoleChange(chnge) => {
+                            self.send_ack(seq);
+                            if seq >= self.server_seq {
+                                self.role = chnge.receiver_role();
+                                self.server_seq = seq;
+                            }
                         }
                         _ => {}
                     }
@@ -300,9 +321,9 @@ impl Client {
                 _  => {
                 }
             }
-            self.check_pending();
             eprintln!("current pending: {}", self.pending_msgs.len());
         }
+        self.check_pending();
         true
     }
 

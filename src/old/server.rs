@@ -123,7 +123,7 @@ impl Server {
                                     snake.set_head_direction(dir);
                                     snake.set_state(SnakeState::ALIVE);
                                     snake.set_player_id(player.id());
-                                    self.game.snakes.push(snake);
+                                    self.game.snakes.insert(player.id(), snake);
                                     self.players.players.push(player);
                                 } else {
                                     let mut error = ErrorMsg::new();
@@ -257,7 +257,7 @@ impl Server {
             String::from(name),
             0,
             NodeRole::MASTER,
-            "127.0.0.1:48668".to_socket_addrs().unwrap().next().unwrap(),
+            "127.0.0.1:48666".to_socket_addrs().unwrap().next().unwrap(),
         );
         let mut player = GamePlayer::new();
         player.set_name("Admin".to_owned());

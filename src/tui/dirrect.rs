@@ -97,7 +97,7 @@ pub fn show_connect_dialog(player_name: &str) -> Option<Client> {
                     inputs[selected].raw.push(char::from_u32(key as u32).unwrap());
                 }
             }
-            65..=90 | 97..=122 => { // A-Z | a-z
+            65..=90 | 97..=122 | 32 => { // A-Z | a-z
                 if selected == 1 {
                     inputs[selected].raw.push(char::from_u32(key as u32).unwrap());
                 }
