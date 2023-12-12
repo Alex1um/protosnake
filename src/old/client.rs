@@ -264,7 +264,8 @@ impl Client {
     fn send_ping(&mut self) {
         let mut gm = GameMessage::new();
         gm.set_ping(PingMsg::new());
-        self.pending_msgs.insert(self.seq, gm);
+        gm.set_msg_seq(self.seq);
+        self.pending_msgs.insert(self.seq, PendingMsg::new(gm));
         self.seq += 1;
     }
 
@@ -337,10 +338,10 @@ impl Client {
                 _  => {
                 }
             }
-            eprintln!("current pending: {}", self.pending_msgs.len());
+            // eprintln!("current pending: {}", self.pending_msgs.len());
         }
-        self.check_ping();
         self.check_pending();
+        // self.check_ping();
         true
     }
 

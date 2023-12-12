@@ -27,7 +27,7 @@ impl PartialEq for GameOption {
 impl Eq for GameOption {}
 
 pub fn browse(player_name: &str) -> Option<Client> {
-    let multicast_receiver = UdpSocket::bind("0.0.0.0:48667").expect("successful bind");
+    let multicast_receiver = UdpSocket::bind("0.0.0.0:9192").expect("successful bind");
     multicast_receiver
         .join_multicast_v4(&Ipv4Addr::new(239, 192, 0, 4), &Ipv4Addr::new(0, 0, 0, 0))
         .expect("Successful join");
