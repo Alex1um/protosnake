@@ -1,9 +1,10 @@
 
-use std::fmt::Display;
+
 
 use ncurses::*;
 
 use crate::snakes::snakes::GameConfig;
+
 
 const STATS_HEIGHT: i32 = 3;
 

@@ -1,4 +1,4 @@
-use anyhow::Result;
+
 use ncurses::*;
 
 const WINDOW_HEIGHT: i32 = 6;

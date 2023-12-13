@@ -1,9 +1,9 @@
-use ncurses::endwin;
-use protobuf::MessageField;
+
+
 use rand::{Rng, thread_rng};
 use crate::snakes::snakes::{Direction, GamePlayer, GameConfig, GameState};
 use crate::snakes::snakes::game_state::{Coord, Snake};
-use std::cell::Cell;
+
 use std::collections::HashMap;
 use rand::prelude::SliceRandom;
 use rand::seq::IteratorRandom;
@@ -195,7 +195,7 @@ impl Game {
         return dead_playe_ids;
     }
 
-    pub fn apply_state(&mut self, state: GameState, seq: i64) {
+    pub fn apply_state(&mut self, state: GameState, _seq: i64) {
         self.snakes.clear();
         for row in self.world.iter_mut() {
             row.fill(WorldCell::None);

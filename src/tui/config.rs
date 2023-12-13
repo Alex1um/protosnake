@@ -25,9 +25,6 @@ impl NumInput<'_> {
         NumInput { name, value: i32::default(), raw: String::from(value), is_number: false }
     }
 
-    pub(self) fn print_nc(&self) {
-        addstr(&self.raw);
-    }
 }
 
 pub fn show_menu_config(inputs: &mut Vec<NumInput>) -> Result<(), ()> {
@@ -43,7 +40,7 @@ pub fn show_menu_config(inputs: &mut Vec<NumInput>) -> Result<(), ()> {
     init_pair(INPUT_SELECTED_PAIR, COLOR_WHITE, COLOR_BLUE);
     init_pair(SUMBMIT_PAIR, COLOR_BLACK, COLOR_GREEN | 0b1000);
     init_pair(CANCEL_PAIR, COLOR_BLACK, COLOR_RED | 0b1000);
-    let BUTTONS_ROW = inputs.len();
+    let buttons_row = inputs.len();
     let mut selected_button = 0;
     
     loop {
@@ -64,7 +61,7 @@ pub fn show_menu_config(inputs: &mut Vec<NumInput>) -> Result<(), ()> {
             }
             addstr("\n");
         }
-        if selected == BUTTONS_ROW {
+        if selected == buttons_row {
             if selected_button == 0 {
                 attron(COLOR_PAIR(CANCEL_PAIR));
                 addstr("Cancel");
@@ -115,7 +112,7 @@ pub fn show_menu_config(inputs: &mut Vec<NumInput>) -> Result<(), ()> {
                 selected_raw.pop();
             }
             KEY_ENTER | 10 => {
-                if selected == BUTTONS_ROW {
+                if selected == buttons_row {
                     match selected_button {
                         0 => {
                             break;

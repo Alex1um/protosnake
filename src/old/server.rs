@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io;
-use std::net::{SocketAddr, ToSocketAddrs, SocketAddrV4};
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::Instant;
 use protobuf::{Message, MessageField};
 use super::client::Client;
@@ -8,7 +8,7 @@ use super::sockets::Sockets;
 use crate::snakes::snakes::game_state::Snake;
 use crate::snakes::snakes::game_state::snake::SnakeState;
 use crate::snakes::snakes::{GameAnnouncement, GameConfig, GameMessage, GamePlayer, GamePlayers, game_message, GameState, NodeRole, Direction};
-use crate::snakes::snakes::game_message::{AnnouncementMsg, DiscoverMsg, PingMsg, AckMsg, StateMsg, ErrorMsg, RoleChangeMsg};
+use crate::snakes::snakes::game_message::{AnnouncementMsg, AckMsg, StateMsg, ErrorMsg, RoleChangeMsg};
 use anyhow::Result;
 
 use super::base::{Game, WorldCell};
@@ -99,7 +99,7 @@ impl Server {
         }
     }
 
-    fn get_chnge_role(&mut self, role: NodeRole, id: i32) -> GameMessage {
+    fn get_chnge_role(&mut self, _role: NodeRole, id: i32) -> GameMessage {
         let mut gm = GameMessage::new();
         let mut rc = RoleChangeMsg::new();
         rc.set_sender_role(NodeRole::MASTER);
@@ -161,7 +161,7 @@ impl Server {
     }
 
     fn ack_pending(&mut self, seq: i64) {
-        let res = self.pending_msgs.remove(&seq);
+        let _res = self.pending_msgs.remove(&seq);
     }
 
     fn update_timeout(&mut self, addr: SocketAddr) {
@@ -226,26 +226,26 @@ impl Server {
             if let Ok(msg) = GameMessage::parse_from_bytes(&buf[..len]) {
                 if let Some(t) = &msg.Type {
                     match t {
-                        game_message::Type::Ping(ping_msg) => {
+                        game_message::Type::Ping(_ping_msg) => {
                             // self.get_player_by_ip(&addr).and_then(|player| player.set_ping(ping_msg.ping()));
                             self.send_ack(msg.msg_seq(), Some(msg.sender_id()), &addr);
                             self.update_timeout(addr);
                         }
-                        game_message::Type::Ack(ack) => {
+                        game_message::Type::Ack(_ack) => {
                             // self.send_ack(msg.msg_seq(), Some(msg.sender_id()), &addr)
                             self.ack_pending(msg.msg_seq());
                             self.update_timeout(addr);
                         }
-                        game_message::Type::Announcement(announcement) => {
+                        game_message::Type::Announcement(_announcement) => {
 
                         }
-                        game_message::Type::Discover(discover) => {
+                        game_message::Type::Discover(_discover) => {
                             let announcement = self.get_announcement();
                             if let Ok(bytes) = announcement.write_to_bytes() {
                                 let _ = self.sockets.socket.send_to(&bytes, &addr);
                             }
                         }
-                        game_message::Type::Error(error) => {
+                        game_message::Type::Error(_error) => {
                             self.send_ack(msg.msg_seq(), Some(msg.sender_id()), &addr);
                             self.update_timeout(addr);
                         }
@@ -324,7 +324,7 @@ impl Server {
                             }
                             self.update_timeout(addr);
                         }
-                        game_message::Type::State(state) => {
+                        game_message::Type::State(_state) => {
                             self.send_ack(msg.msg_seq(), Some(msg.sender_id()), &addr);
                             self.update_timeout(addr);
                         }

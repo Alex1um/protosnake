@@ -1,4 +1,4 @@
-use std::net::{Ipv4Addr, UdpSocket};
+use std::net::{UdpSocket};
 
 pub struct Sockets {
     pub socket: UdpSocket,

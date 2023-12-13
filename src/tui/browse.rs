@@ -1,7 +1,7 @@
-use std::{collections::{HashMap, HashSet}, net::{SocketAddr, UdpSocket, Ipv4Addr}, time::Instant};
+use std::{collections::{HashMap}, net::{SocketAddr, UdpSocket, Ipv4Addr}, time::Instant};
 
-use crate::{old::{sockets::Sockets, client::Client, base::Game}, snakes::snakes::{GameAnnouncement, GameMessage, game_message::{AnnouncementMsg, self}, NodeRole}, tui::{err::print_error, modal::show_modal}};
-use anyhow::{Result};
+use crate::{old::{client::Client}, snakes::snakes::{GameMessage, game_message::{self}, NodeRole}, tui::{err::print_error, modal::show_modal}};
+
 use ncurses::*;
 use protobuf::Message;
 use std::hash::Hash;

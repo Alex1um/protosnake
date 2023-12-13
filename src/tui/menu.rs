@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter};
+
 use ncurses::*;
 
 pub fn show_menu<'a, 'b>(options: Vec<&'a str>, player_name: &'b mut String) -> Result<&'a str, ()> {
@@ -8,7 +8,7 @@ pub fn show_menu<'a, 'b>(options: Vec<&'a str>, player_name: &'b mut String) -> 
     start_color();
     init_pair(INPUT_PAIR, COLOR_WHITE, COLOR_BLACK | 0b1000);
     init_pair(INPUT_SELECTED_PAIR, COLOR_WHITE, COLOR_BLUE);
-    let NAME_ROW = 0;
+    const NAME_ROW: usize = 0;
     let len = options.len() + 1;
     loop {
         clear();

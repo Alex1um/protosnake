@@ -16,9 +16,6 @@ impl IpInput<'_> {
         IpInput { name, raw: String::from(value) }
     }
 
-    pub(self) fn print_nc(&self) {
-        addstr(&self.raw);
-    }
 }
 
 pub fn show_connect_dialog(player_name: &str) -> Option<Client> {

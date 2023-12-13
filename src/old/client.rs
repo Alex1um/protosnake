@@ -2,7 +2,7 @@ use std::{net::{ToSocketAddrs, SocketAddr}, time::Instant, collections::HashMap}
 
 use protobuf::Message;
 
-use crate::{snakes::snakes::{GameConfig, game_message::{JoinMsg, self, StateMsg, SteerMsg, DiscoverMsg, RoleChangeMsg, AckMsg, PingMsg}, PlayerType, NodeRole, GameMessage, game_state::{Coord, snake::SnakeState}, Direction}, tui::err::print_error};
+use crate::{snakes::snakes::{GameConfig, game_message::{JoinMsg, self, SteerMsg, DiscoverMsg, RoleChangeMsg, AckMsg, PingMsg}, PlayerType, NodeRole, GameMessage, game_state::{snake::SnakeState}, Direction}, tui::err::print_error};
 
 use super::{base::Game, sockets::Sockets};
 
@@ -48,7 +48,7 @@ pub struct Client {
 impl Client {
 
     pub fn new(config: GameConfig, player_name: String, player_id: i32, role: NodeRole, addr: SocketAddr) -> Self {
-        let mut client = Client {
+        let client = Client {
             game: Game::new(config),
             player_name,
             sockets: Sockets::new2(true),
@@ -96,7 +96,7 @@ impl Client {
             let gm = &GameMessage::parse_from_bytes(&buf[..len])?;
             if let Some(ref r#type) = gm.Type {
                 match r#type {
-                    game_message::Type::Ack(ack) => {
+                    game_message::Type::Ack(_ack) => {
                         return Ok(gm.receiver_id())
                     }
                     _ => {
@@ -128,7 +128,7 @@ impl Client {
         sockets.socket.send(&bytes)?;
 
         let pid = wait_ack(&mut sockets)?;
-        sockets.socket.set_nonblocking(true);
+        sockets.socket.set_nonblocking(true)?;
         Ok(Client {
             game: Game::new(config),
             player_name: player_name.to_owned(),
@@ -162,18 +162,17 @@ impl Client {
             addch('@' as u32);
         }
         attroff(COLOR_PAIR(FOOD_PAIR));
-        let mut snak_attroff = COLOR_PAIR(EN_SNAK_PAIR);
         for snak in self.game.snakes.values() {
-            match snak.state() {
+            let snak_attroff = match snak.state() {
                 SnakeState::ZOMBIE => {
                     attron(COLOR_PAIR(ZM_SNAK_PAIR));
-                    snak_attroff = COLOR_PAIR(ZM_SNAK_PAIR)
+                    COLOR_PAIR(ZM_SNAK_PAIR)
                 }
                 SnakeState::ALIVE => {
-                    snak_attroff = COLOR_PAIR(EN_SNAK_PAIR);
                     attron(COLOR_PAIR(EN_SNAK_PAIR));
+                    COLOR_PAIR(EN_SNAK_PAIR)
                 }
-            }
+            };
             for coord in snak.points.iter() {
                 let x = coord.x();
                 let y = coord.y();
@@ -282,15 +281,14 @@ impl Client {
 
     pub fn action(&mut self) -> bool {
         let mut buf = [0u8; 1024];
-        static mut cur_addr: Option<SocketAddr> = None;
         if let Ok(len) = self.sockets.socket.recv(&mut buf) {
             if len == 0 {
                 return false;
             }
             if let Ok(gm) = GameMessage::parse_from_bytes(&buf[..len]) {
                 let seq = gm.msg_seq();
-                let sender_id = gm.sender_id();
-                let receiver_id = gm.receiver_id();
+                let _sender_id = gm.sender_id();
+                let _receiver_id = gm.receiver_id();
                 if let Some(tpe) = gm.Type {
                     match tpe {
                         game_message::Type::State(state) => {

@@ -22,10 +22,10 @@ fn main() {
                 "Start" => {
                     let mut options = vec![
                         NumInput::str_default("Server Name", "Snake game"),
-                        NumInput::new("width"),
-                        NumInput::new("height"),
-                        NumInput::new("max food"),
-                        NumInput::new("state delay ms"),
+                        NumInput::default("width", 10),
+                        NumInput::default("height", 10),
+                        NumInput::default("max food", 10),
+                        NumInput::default("state delay ms", 500),
                         ];
                     if let Ok(_) = config::show_menu_config(&mut options) {
                         let mut cfg = GameConfig::new();
