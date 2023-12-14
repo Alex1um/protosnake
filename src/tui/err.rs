@@ -10,7 +10,7 @@ fn create_win(start_y: i32, start_x: i32, text: String) -> (WINDOW, WINDOW) {
     let b_win = newwin(WINDOW_HEIGHT, WINDOW_WIDTH, start_y, start_x);
     box_(b_win, 0, 0);
     wrefresh(b_win);
-    let win = newwin(WINDOW_HEIGHT - 2, WINDOW_WIDTH - 2, start_y - 1, start_x - 1);
+    let win = newwin(WINDOW_HEIGHT - 2, WINDOW_WIDTH - 2, start_y + 1, start_x + 1);
     wprintw(win, &text);
     wrefresh(win);
     (b_win, win)

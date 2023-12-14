@@ -87,9 +87,11 @@ pub fn show_menu_config(inputs: &mut Vec<NumInput>) -> Result<(), ()> {
         match key {
             KEY_UP | 119 => {
                 selected = selected + len - 1;
+                selected %= len;
             }
             KEY_DOWN | 115 => {
                 selected += 1;
+                selected %= len;
             }
             KEY_LEFT | KEY_RIGHT => {
                 selected_button ^= 1;
@@ -115,6 +117,7 @@ pub fn show_menu_config(inputs: &mut Vec<NumInput>) -> Result<(), ()> {
                 if selected == buttons_row {
                     match selected_button {
                         0 => {
+                            return Err(());
                             break;
                         }
                         1 => {
@@ -143,11 +146,6 @@ pub fn show_menu_config(inputs: &mut Vec<NumInput>) -> Result<(), ()> {
             }
             _ => { }
         }
-
-
-        selected %= len;
     }
-
-
     Ok(())
 }
