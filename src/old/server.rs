@@ -142,6 +142,9 @@ impl Server {
             if (now - *timeout).as_secs_f32() > delay {
                 if let Some(id) = self.addrs.get(addr) {
                     self.game.players.remove(id);
+                    if let Some(snak) = self.game.snakes.get_mut(id) {
+                        snak.set_state(SnakeState::ZOMBIE);
+                    }
                 }
                 self.addrs.remove(addr);
                 return false;
@@ -350,16 +353,18 @@ impl Server {
     }
 
     fn add_local_player(&mut self, name: &str) -> Client {
+        let server_addr = self.sockets.socket.local_addr().expect("server socket has local addr");
         let local_client = Client::new(
             self.game.config.clone(),
             String::from(name),
             0,
             NodeRole::MASTER,
-            "127.0.0.1:48666".to_socket_addrs().unwrap().next().unwrap(),
+            server_addr,
         );
+        let client_addr = local_client.get_local_addr();
         let mut player = GamePlayer::new();
         player.set_name("Admin".to_owned());
-        player.set_ip_address("127.0.0.1:48668".to_owned());
+        player.set_ip_address(client_addr.to_string());
         player.set_score(0);
         player.set_role(NodeRole::MASTER); // TODO: change
         player.set_type(crate::snakes::snakes::PlayerType::HUMAN);
@@ -375,7 +380,7 @@ impl Server {
             snake.set_player_id(0);
             self.game.snakes.insert(player.id(), snake);
         }
-        self.addrs.insert( "127.0.0.1:48668".to_socket_addrs().unwrap().next().unwrap(), player.id());
+        self.addrs.insert( client_addr, player.id());
         self.game.players.insert(player.id(), player);
         local_client
     }

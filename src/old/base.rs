@@ -197,28 +197,29 @@ impl Game {
 
     pub fn apply_state(&mut self, state: GameState, _seq: i64) {
         self.snakes.clear();
+        self.players.clear();
         for row in self.world.iter_mut() {
             row.fill(WorldCell::None);
         }
-        let height = self.config.height();
-        let width = self.config.width();
-        for snake in &state.snakes {
-            for coord in &snake.points {
-                // if coord.y() < 0 || coord.x() < 0 {
-                //     endwin();
-                //     panic!("negative {} {} at {} state: \n{:#?}", coord.y(), coord.x(), seq, state);
-                // }
-                self.world[((coord.y() + height) % height) as usize][((coord.x() + width) % width) as usize] = WorldCell::Snake;
-                // self.world[coord.y() as usize][coord.x() as usize] = WorldCell::Snake;
-            }
-        }
+        // let height = self.config.height();
+        // let width = self.config.width();
+        // for snake in &state.snakes {
+        //     for coord in &snake.points {
+        //         // if coord.y() < 0 || coord.x() < 0 {
+        //         //     endwin();
+        //         //     panic!("negative {} {} at {} state: \n{:#?}", coord.y(), coord.x(), seq, state);
+        //         // }
+        //         self.world[((coord.y() + height) % height) as usize][((coord.x() + width) % width) as usize] = WorldCell::Snake;
+        //         // self.world[coord.y() as usize][coord.x() as usize] = WorldCell::Snake;
+        //     }
+        // }
         for snake in state.snakes {
             self.snakes.insert(snake.player_id(), snake);
         }
-        for coord in &state.foods {
-            // self.world[coord.y() as usize][coord.x() as usize] = WorldCell::Food;
-            self.world[((coord.y() + height) % height) as usize][((coord.x() + width) % width) as usize] = WorldCell::Food;
-        }
+        // for coord in &state.foods {
+        //     // self.world[coord.y() as usize][coord.x() as usize] = WorldCell::Food;
+        //     self.world[((coord.y() + height) % height) as usize][((coord.x() + width) % width) as usize] = WorldCell::Food;
+        // }
         let game_players = state.players.unwrap();
         for player in game_players.players {
             self.players.insert(player.id(), player);

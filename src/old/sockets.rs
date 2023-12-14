@@ -6,7 +6,7 @@ pub struct Sockets {
 
 impl Sockets {
     pub fn new(nonblockin: bool) -> Self {
-        let socket = UdpSocket::bind("0.0.0.0:48666").expect("successful main socket bind");
+        let socket = UdpSocket::bind("0.0.0.0:0").expect("successful main socket bind");
         socket.set_nonblocking(nonblockin).expect("Successful non blocking main socket");
         Sockets {
             socket,
@@ -14,7 +14,7 @@ impl Sockets {
     }
     pub fn new2(nonblockin: bool) -> Self {
 
-        let socket = UdpSocket::bind("0.0.0.0:48668").expect("successful main socket bind");
+        let socket = UdpSocket::bind("0.0.0.0:0").expect("successful main socket bind");
         socket.set_nonblocking(nonblockin).expect("Successful non blocking main socket");
         Sockets {
             socket,
@@ -22,7 +22,7 @@ impl Sockets {
     }
  
     pub fn new3(nonblockin: bool) -> Self {
-        let socket = UdpSocket::bind("0.0.0.0:48669").expect("successful main socket bind");
+        let socket = UdpSocket::bind("0.0.0.0:0").expect("successful main socket bind");
         socket.set_nonblocking(nonblockin).expect("Successful non blocking main socket");
         Sockets {
             socket,

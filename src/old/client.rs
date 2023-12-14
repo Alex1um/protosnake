@@ -84,6 +84,10 @@ impl Client {
         client
     }
 
+    pub fn get_local_addr(&self) -> SocketAddr {
+        self.sockets.socket.local_addr().expect("Client has peer addr")
+    }
+
     fn wait_announcement(sockets: &mut Sockets, game_name: &str) -> Result<GameConfig> {
         let mut buf = [0u8; 1024];
         let len = sockets.socket.recv(&mut buf)?;
@@ -322,14 +326,13 @@ impl Client {
                 _  => {
                 }
             }
-            // eprintln!("current pending: {}", self.pending_msgs.len());
         }
         self.check_ping();
         self.check_pending();
-        for (seq, msg) in &self.pending_msgs {
-            self.interface.dbg(&format!("{seq} {} {}\n", msg.send_count, msg.tpe));
-        }
-        self.interface.dbg(&format!("{}\n", self.pending_msgs.len()));
+        // for (seq, msg) in &self.pending_msgs {
+        //     self.interface.dbg(&format!("{seq} {} {}\n", msg.send_count, msg.tpe));
+        // }
+        // self.interface.dbg(&format!("{}\n", self.pending_msgs.len()));
         true
     }
 
