@@ -8,6 +8,8 @@ use super::{base::Game, sockets::Sockets};
 
 use anyhow::{Result, bail};
 
+use crate::tui::game::GameInterface;
+
 use ncurses::*;
 
 struct PendingMsg {
@@ -43,12 +45,14 @@ pub struct Client {
     last_ping_mesg: Instant,
     pending_msgs: HashMap<i64, PendingMsg>,
     server_seq: i64,
+    interface: GameInterface,
 }
 
 impl Client {
 
     pub fn new(config: GameConfig, player_name: String, player_id: i32, role: NodeRole, addr: SocketAddr) -> Self {
         let client = Client {
+            interface: GameInterface::new(&config),
             game: Game::new(config),
             player_name,
             sockets: Sockets::new2(true),
@@ -130,6 +134,7 @@ impl Client {
         let pid = wait_ack(&mut sockets)?;
         sockets.socket.set_nonblocking(true)?;
         Ok(Client {
+            interface: GameInterface::new(&config),
             game: Game::new(config),
             player_name: player_name.to_owned(),
             sockets,
@@ -145,55 +150,7 @@ impl Client {
     }
 
     fn print(&self) {
-        clear();
-        const FOOD_PAIR: i16 = 4;
-        init_pair(FOOD_PAIR, COLOR_GREEN, COLOR_BLACK);
-        const EN_SNAK_PAIR: i16 = 5;
-        init_pair(EN_SNAK_PAIR, COLOR_RED, COLOR_BLACK);
-        const SELF_SNAK_PAIR: i16 = 6;
-        init_pair(SELF_SNAK_PAIR, COLOR_BLUE, COLOR_BLACK);
-        const ZM_SNAK_PAIR: i16 = 7;
-        init_pair(ZM_SNAK_PAIR, COLOR_GREEN | 0b1000, COLOR_BLACK);
-        attron(COLOR_PAIR(FOOD_PAIR));
-        for food in self.game.food.iter() {
-            let x = food.x();
-            let y = food.y();
-            mv(y, x);
-            addch('@' as u32);
-        }
-        attroff(COLOR_PAIR(FOOD_PAIR));
-        for snak in self.game.snakes.values() {
-            let snak_attroff = match snak.state() {
-                SnakeState::ZOMBIE => {
-                    attron(COLOR_PAIR(ZM_SNAK_PAIR));
-                    COLOR_PAIR(ZM_SNAK_PAIR)
-                }
-                SnakeState::ALIVE => {
-                    attron(COLOR_PAIR(EN_SNAK_PAIR));
-                    COLOR_PAIR(EN_SNAK_PAIR)
-                }
-            };
-            for coord in snak.points.iter() {
-                let x = coord.x();
-                let y = coord.y();
-                mv(y, x);
-                addch('#' as u32);
-            }
-            attroff(snak_attroff);
-        }
-        if let Some(snak) = self.game.snakes.get(&self.id) {
-            attron(COLOR_PAIR(SELF_SNAK_PAIR));
-            for coord in snak.points.iter() {
-                let x = coord.x();
-                let y = coord.y();
-                mv(y, x);
-                addch('#' as u32);
-            }
-
-            attroff(COLOR_PAIR(SELF_SNAK_PAIR));
-        }
-        mv(0, 0);
-        refresh();
+        self.interface.print(&self.game, self.id);
     }
 
     fn send_steer(&mut self, dir: Direction) {
