@@ -2,7 +2,7 @@ use std::{net::{ToSocketAddrs, SocketAddr}, time::Instant, collections::HashMap}
 
 use protobuf::Message;
 
-use crate::{snakes::snakes::{GameConfig, game_message::{JoinMsg, self, SteerMsg, DiscoverMsg, RoleChangeMsg, AckMsg, PingMsg}, PlayerType, NodeRole, GameMessage, game_state::{snake::SnakeState}, Direction}, tui::err::print_error};
+use crate::{snakes::snakes::{GameConfig, game_message::{JoinMsg, self, SteerMsg, DiscoverMsg, RoleChangeMsg, AckMsg, PingMsg}, PlayerType, NodeRole, GameMessage, Direction}, tui::err::print_error};
 
 use super::{base::Game, sockets::Sockets};
 

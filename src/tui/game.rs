@@ -1,7 +1,7 @@
 use ncurses::*;
 
 use crate::snakes::snakes::game_state::snake::SnakeState;
-use crate::snakes::snakes::{GameConfig, GamePlayer, NodeRole};
+use crate::snakes::snakes::{GameConfig, GamePlayer};
 use crate::old::base::Game;
 
 const STATS_HEIGHT: i32 = 3;

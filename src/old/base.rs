@@ -228,7 +228,3 @@ impl Game {
     }
 
 }
-
-pub trait Player {
-}
-
