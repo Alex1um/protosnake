@@ -2,16 +2,18 @@ use std::fmt::Display;
 
 use ncurses::*;
 
-const WINDOW_HEIGHT: i32 = 6;
-const WINDOW_WIDTH: i32 = 20;
+const WINDOW_HEIGHT: i32 = 8;
+const WINDOW_WIDTH: i32 = 25;
 
 
-fn create_win(start_y: i32, start_x: i32, text: String) -> WINDOW {
-    let win = newwin(WINDOW_HEIGHT, WINDOW_WIDTH, start_y, start_x);
-    box_(win, 0, 0);
+fn create_win(start_y: i32, start_x: i32, text: String) -> (WINDOW, WINDOW) {
+    let b_win = newwin(WINDOW_HEIGHT, WINDOW_WIDTH, start_y, start_x);
+    box_(b_win, 0, 0);
+    wrefresh(b_win);
+    let win = newwin(WINDOW_HEIGHT - 2, WINDOW_WIDTH - 2, start_y - 1, start_x - 1);
     wprintw(win, &text);
     wrefresh(win);
-    win
+    (b_win, win)
 }
 
 fn destroy_win(win: WINDOW) {
@@ -30,14 +32,15 @@ pub fn print_error(err: impl Display) {
     /* Start in the center. */
     let start_y = (max_y - WINDOW_HEIGHT) / 2;
     let start_x = (max_x - WINDOW_WIDTH) / 2;
-    let win = create_win(start_y, start_x, format!("{}", err));
+    let (b_win, win) = create_win(start_y, start_x, format!("{}", err));
     loop {
         match getch() {
             KEY_ENTER | 10 => {
-                destroy_win(win);
                 break;
             }
             _ => {}
         }
     }
+    destroy_win(b_win);
+    destroy_win(win);
 }

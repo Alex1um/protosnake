@@ -1,16 +1,19 @@
 
 use ncurses::*;
 
-const WINDOW_HEIGHT: i32 = 6;
-const WINDOW_WIDTH: i32 = 20;
+const WINDOW_HEIGHT: i32 = 5;
+const WINDOW_WIDTH: i32 = 25;
 
 
-fn create_win(start_y: i32, start_x: i32, text: &str, options: &Vec<&'static str>, selected: usize) -> WINDOW {
-    let win = newwin(WINDOW_HEIGHT, WINDOW_WIDTH, start_y, start_x);
-    box_(win, 0, 0);
+fn create_win(start_y: i32, start_x: i32, text: &str, options: &Vec<&'static str>, selected: usize) -> (WINDOW, WINDOW) {
+    let b_win = newwin(WINDOW_HEIGHT, WINDOW_WIDTH, start_y, start_x);
+    box_(b_win, 0, 0);
+    wrefresh(b_win);
+    let win = newwin(WINDOW_HEIGHT - 2, WINDOW_WIDTH - 2, start_y + 1, start_x + 1);
     start_color();
-    wprintw(win, text);
-    wprintw(win, "\n");
+    wrefresh(win);
+    waddstr(win, text);
+    waddstr(win, "\n\n");
     const SUMBMIT_PAIR: i16 = 3;
     const CANCEL_PAIR: i16 = 4;
     init_pair(SUMBMIT_PAIR, COLOR_BLACK, COLOR_BLUE | 0b1000);
@@ -19,23 +22,22 @@ fn create_win(start_y: i32, start_x: i32, text: &str, options: &Vec<&'static str
     for (i, option) in options.iter().enumerate() {
         if i == selected {
             attron(COLOR_PAIR(SUMBMIT_PAIR));
-            wprintw(win, option);
+            waddstr(win, option);
             attroff(COLOR_PAIR(SUMBMIT_PAIR));
-            wprintw(win, "\t");
+            waddch(win, '\t'.into());
         } else {
-            wprintw(win, option);
-            wprintw(win, "\t");
+            waddstr(win, option);
+            waddch(win, '\t'.into());
         }
     }
     wrefresh(win);
-    win
+    (b_win, win)
 }
 
 fn update(win: WINDOW, text: &str, options: &Vec<&'static str>, selected: usize) {
     wclear(win);
-    box_(win, 0, 0);
-    wprintw(win, text);
-    wprintw(win, "\n");
+    waddstr(win, text);
+    waddstr(win, "\n\n");
     const SUMBMIT_PAIR: i16 = 3;
     const CANCEL_PAIR: i16 = 4;
     init_pair(SUMBMIT_PAIR, COLOR_BLACK, COLOR_BLUE | 0b1000);
@@ -44,12 +46,12 @@ fn update(win: WINDOW, text: &str, options: &Vec<&'static str>, selected: usize)
     for (i, option) in options.iter().enumerate() {
         if i == selected {
             wattr_on(win, COLOR_PAIR(SUMBMIT_PAIR));
-            wprintw(win, option);
+            waddstr(win, option);
             wattr_off(win, COLOR_PAIR(SUMBMIT_PAIR));
-            wprintw(win, "\t");
+            waddch(win, '\t'.into());
         } else {
-            wprintw(win, option);
-            wprintw(win, "\t");
+            waddstr(win, option);
+            waddch(win, '\t'.into());
         }
     }
     wrefresh(win);
@@ -73,13 +75,12 @@ pub fn show_modal(text: &'static str, options: Vec<&'static str>) -> &'static st
     /* Start in the center. */
     let start_y = (max_y - WINDOW_HEIGHT) / 2;
     let start_x = (max_x - WINDOW_WIDTH) / 2;
-    let win = create_win(start_y, start_x, text, &options, selected);
+    let (b_win, win) = create_win(start_y, start_x, text, &options, selected);
     timeout(300);
     loop {
         update(win, text, &options, selected);
         match getch() {
             KEY_ENTER | 10 => {
-                destroy_win(win);
                 break;
             }
             KEY_RIGHT => {
@@ -93,5 +94,7 @@ pub fn show_modal(text: &'static str, options: Vec<&'static str>) -> &'static st
             _ => {}
         }
     }
+    destroy_win(b_win);
+    destroy_win(win);
     options[selected]
 }

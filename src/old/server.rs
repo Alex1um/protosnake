@@ -140,16 +140,10 @@ impl Server {
         let delay = self.game.config.state_delay_ms() as f32 / 1000f32 * 0.8f32;
         self.player_timeout.retain(|addr, timeout| {
             if (now - *timeout).as_secs_f32() > delay {
-                let mut gm = GameMessage::new();
-                let mut rc = RoleChangeMsg::new();
-                rc.set_sender_role(NodeRole::MASTER);
-                rc.set_receiver_role(NodeRole::VIEWER);
-                gm.set_role_change(rc);
-                gm.set_msg_seq(self.seq);
-                gm.set_sender_id(self.id);
-                gm.set_receiver_id(0);
-                self.seq += 1;
-                self.pending_msgs.insert(gm.msg_seq(), PendingMsg::new(&gm, *addr));
+                if let Some(id) = self.addrs.get(addr) {
+                    self.game.players.remove(id);
+                }
+                self.addrs.remove(addr);
                 return false;
             }
             true
@@ -393,7 +387,7 @@ impl Server {
             self.receive_message();
             self.do_state();
             self.check_pending();
-            // self.check_timeout();
+            self.check_timeout();
             self.do_multicast();
             client.action();
         }

@@ -12,23 +12,37 @@ use crate::tui::game::GameInterface;
 
 use ncurses::*;
 
+#[derive(Debug)]
 struct PendingMsg {
-    msg: GameMessage,
+    msg: Vec<u8>,
     send_time: Option<Instant>,
     send_count: u32,
+    tpe: &'static str,
 }
 
 impl PendingMsg {
-    pub fn new(msg: GameMessage) -> Self {
+    pub fn new(msg: &GameMessage) -> Self {
         PendingMsg {
-            msg,
+            msg: msg.write_to_bytes().expect("written GameMessage"),
             send_time: None,
             send_count: 0,
+            tpe: match msg.Type {
+                Some(game_message::Type::State(_)) => "State",
+                Some(game_message::Type::Steer(_)) => "Steer",
+                Some(game_message::Type::Discover(_)) => "Discover",
+                Some(game_message::Type::RoleChange(_)) => "RoleChange",
+                Some(game_message::Type::Join(_)) => "Join",
+                Some(game_message::Type::Ack(_)) => "Ack",
+                Some(game_message::Type::Ping(_)) => "Ping",
+                Some(game_message::Type::Announcement(_)) => "Announcement",
+                Some(game_message::Type::Error(_)) => "Error",
+                _ => "Unknown",
+            },
         }
     }
 
     pub fn send(&mut self, sockets: &mut Sockets) -> Result<()> {
-        sockets.socket.send(&self.msg.write_to_bytes()?)?;
+        sockets.socket.send(&self.msg)?;
         self.send_count += 1;
         Ok(())
     }
@@ -46,6 +60,7 @@ pub struct Client {
     pending_msgs: HashMap<i64, PendingMsg>,
     server_seq: i64,
     interface: GameInterface,
+    ping_seq: i64,
 }
 
 impl Client {
@@ -62,7 +77,8 @@ impl Client {
             last_mesg: Instant::now(),
             last_ping_mesg: Instant::now(),
             pending_msgs: HashMap::new(),
-            server_seq: 0,
+            server_seq: -1,
+            ping_seq: -1,
         };
         client.sockets.socket.connect(addr).expect("Connection to local server");
         client
@@ -108,7 +124,7 @@ impl Client {
                     }
                 }
             } else {
-                bail!("wrong message type were received: {:?}", gm.Type)
+                bail!("wrong message type were received: {:#?}", gm.Type)
             }
         }
 
@@ -144,7 +160,8 @@ impl Client {
             last_mesg: Instant::now(),
             last_ping_mesg: Instant::now(),
             pending_msgs: HashMap::new(),
-            server_seq: 0,
+            server_seq: -1,
+            ping_seq: -1,
         })
         
     }
@@ -160,7 +177,7 @@ impl Client {
         gm.set_sender_id(self.id);
         gm.set_msg_seq(self.seq);
         gm.set_steer(steer);
-        self.pending_msgs.insert(self.seq, PendingMsg::new(gm));
+        self.pending_msgs.insert(self.seq, PendingMsg::new(&gm));
         self.seq += 1;
     }
 
@@ -171,7 +188,7 @@ impl Client {
         gm.set_sender_id(self.id);
         gm.set_msg_seq(self.seq);
         gm.set_role_change(chnge);
-        self.pending_msgs.insert(self.seq, PendingMsg::new(gm));
+        self.pending_msgs.insert(self.seq, PendingMsg::new(&gm));
         self.seq += 1;
     }
 
@@ -182,7 +199,7 @@ impl Client {
         gm.set_sender_id(self.id);
         gm.set_msg_seq(self.seq);
         gm.set_role_change(chnge);
-        self.pending_msgs.insert(self.seq, PendingMsg::new(gm));
+        self.pending_msgs.insert(self.seq, PendingMsg::new(&gm));
         self.seq += 1;
     }
 
@@ -205,7 +222,9 @@ impl Client {
                     }
                 }
             }
-            return v.send_count <= 5
+            v.send_time = Some(Instant::now());
+            self.last_mesg = Instant::now();
+            return v.send_count <= 5;
         });
     }
 
@@ -218,21 +237,28 @@ impl Client {
         gm.set_ack(AckMsg::new());
         gm.set_msg_seq(seq);
         self.sockets.socket.send(&gm.write_to_bytes().expect("written ack bytes")).expect("ack send");
+        self.last_mesg = Instant::now();
     }
 
     fn send_ping(&mut self) {
-        let mut gm = GameMessage::new();
-        gm.set_ping(PingMsg::new());
-        gm.set_msg_seq(self.seq);
-        self.pending_msgs.insert(self.seq, PendingMsg::new(gm));
-        self.seq += 1;
+        if let None = self.pending_msgs.get(&self.ping_seq) {
+            let mut gm = GameMessage::new();
+            gm.set_ping(PingMsg::new());
+            gm.set_msg_seq(self.seq);
+            self.ping_seq = self.seq;
+            self.pending_msgs.insert(self.seq, PendingMsg::new(&gm));
+            self.seq += 1;
+            self.last_ping_mesg = Instant::now();
+        }
     }
 
     fn check_ping(&mut self) {
         let now = Instant::now();
         let delay = self.game.config.state_delay_ms() as u128 / 10;
-        if (now - self.last_mesg).as_millis() > delay && (now - self.last_ping_mesg).as_millis() > delay {
-            self.send_ping();
+        if (now - self.last_mesg).as_millis() > delay {
+            if (now - self.last_ping_mesg).as_millis() > delay {
+                self.send_ping();
+            }
         }
     }
 
@@ -298,8 +324,12 @@ impl Client {
             }
             // eprintln!("current pending: {}", self.pending_msgs.len());
         }
+        self.check_ping();
         self.check_pending();
-        // self.check_ping();
+        for (seq, msg) in &self.pending_msgs {
+            self.interface.dbg(&format!("{seq} {} {}\n", msg.send_count, msg.tpe));
+        }
+        self.interface.dbg(&format!("{}\n", self.pending_msgs.len()));
         true
     }
 

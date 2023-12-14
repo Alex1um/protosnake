@@ -6,25 +6,33 @@ use crate::old::base::Game;
 
 const STATS_HEIGHT: i32 = 3;
 
-fn create_win(start_x: i32, start_y: i32, width: i32, height: i32) -> WINDOW {
-    let win = newwin(width, height, start_y, start_x);
-    box_(win, '*'.into(), '*'.into());
+fn create_win(start_x: i32, start_y: i32, width: i32, height: i32) -> (WINDOW, WINDOW) {
+    let border_win = newwin(height + 2, width + 2, start_y, start_x);
+    box_(border_win, 0, 0);
+    wrefresh(border_win);
+    let win = newwin(height, width, start_y + 1, start_x + 1);
     wrefresh(win);
-    win
+    (border_win, win)
 }
 
-fn destroy_win(win: WINDOW) {
+fn destroy_win(win: (WINDOW, WINDOW)) {
     let ch = ' ' as chtype;
-    wborder(win, ch, ch, ch, ch, ch, ch, ch, ch);
-    wrefresh(win);
-    delwin(win);
+    wrefresh(win.1);
+    delwin(win.1);
+    wborder(win.0, ch, ch, ch, ch, ch, ch, ch, ch);
+    wrefresh(win.0);
+    delwin(win.0);
 }
 
 pub struct GameInterface {
     main: WINDOW,
+    b_main: WINDOW,
     stats: WINDOW,
+    b_stats: WINDOW,
     dbg: WINDOW,
+    b_dbg: WINDOW,
     players: WINDOW,
+    b_players: WINDOW,
 }
 
 impl GameInterface {
@@ -32,11 +40,19 @@ impl GameInterface {
         let mut max_x = 0;
         let mut max_y = 0;
         getmaxyx(stdscr(), &mut max_y, &mut max_x);
+        let (b_stats, stats) = create_win(0, 0, max_x - 2, STATS_HEIGHT);
+        let (b_main, main) = create_win(0, STATS_HEIGHT + 2, cfg.width(), cfg.height());
+        let (b_players, players) = create_win(cfg.width() + 2, STATS_HEIGHT + 2, max_x - cfg.width() - 4, cfg.height());
+        let (b_dbg, dbg) = create_win(0, cfg.height() + STATS_HEIGHT + 4, max_x - 2, max_y - cfg.height() - STATS_HEIGHT - 6);
         let int = GameInterface {
-            stats: create_win(0, 0, max_x + 1, STATS_HEIGHT),
-            main: create_win(0, STATS_HEIGHT, cfg.width(), cfg.height()),
-            players: create_win(cfg.width(), STATS_HEIGHT, max_x + 1 - cfg.width(), cfg.height()),
-            dbg: create_win(0, cfg.height() + STATS_HEIGHT, max_x + 1, max_y + 1 - cfg.height() - STATS_HEIGHT),
+            stats,
+            b_stats,
+            main,
+            b_main,
+            players,
+            b_players,
+            dbg,
+            b_dbg,
         };
         scrollok(int.dbg, true);
         return int;
@@ -44,6 +60,7 @@ impl GameInterface {
 
     fn print_stats(&self, player: &GamePlayer) {
         wclear(self.stats);
+        waddstr(self.stats, &format!("{}\t{}\t{}\t{}\n", "role", "id", "name", "score"));
         waddstr(self.stats, &format!("{:?}\t{}\t{}\t{}", player.role(), player.id(), player.name(), player.score()));
         wrefresh(self.stats);
     }
@@ -55,9 +72,11 @@ impl GameInterface {
             if player.id() == self_id {
                 wattron(self.players, A_BOLD());
                 waddstr(self.players, player.name());
+                waddch(self.players, '\n'.into());
                 wattroff(self.players, A_BOLD());
             } else {
                 waddstr(self.players, player.name());
+                waddch(self.players, '\n'.into());
             }
         }
         wrefresh(self.players);
@@ -124,9 +143,9 @@ impl GameInterface {
 
 impl Drop for GameInterface {
     fn drop(&mut self) {
-        destroy_win(self.stats);
-        destroy_win(self.players);
-        destroy_win(self.main);
-        destroy_win(self.dbg);
+        destroy_win((self.b_stats, self.stats));
+        destroy_win((self.b_players, self.players));
+        destroy_win((self.b_main, self.main));
+        destroy_win((self.b_dbg, self.dbg));
     }
 }
